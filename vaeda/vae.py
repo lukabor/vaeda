@@ -3,6 +3,10 @@ import tensorflow_probability as tfp
 import numpy as np
 
 def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
+    # Convert dimensions to integers to avoid shape conversion issues
+    enc_sze = int(enc_sze)
+    ngens = int(ngens)
+    num_clust = int(num_clust)
     
     tfk  = tf.keras
     tfkl = tf.keras.layers
@@ -11,17 +15,23 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
     prior = tfd.Independent(tfd.Normal(loc=tf.zeros(enc_sze), scale=1),
             reinterpreted_batch_ndims=1)
     
+    # Pre-instantiate the distribution layer
+    ind_normal_layer = tfpl.IndependentNormal(
+        enc_sze,
+        activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
+    )
+    
     encoder = tfk.Sequential([
         tfkl.InputLayer(input_shape=[ngens]),
         tfkl.Dense(256, activation='relu'),
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-        tfkl.Lambda(lambda x: tfpl.IndependentNormal(
-            enc_sze,
-            activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
-        )(x))
+        tfkl.Lambda(lambda x: ind_normal_layer(x))
     ], name='encoder')
+    
+    # Pre-instantiate the distribution layer for decoder
+    ind_normal_decoder = tfpl.IndependentNormal(ngens)
     
     decoder = tfk.Sequential([
         tfkl.InputLayer(input_shape=[enc_sze]),
@@ -29,7 +39,7 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(ngens), activation=None),
-        tfkl.Lambda(lambda x: tfpl.IndependentNormal(ngens)(x))
+        tfkl.Lambda(lambda x: ind_normal_decoder(x))
     ], name='decoder')
     
     clust_classifier = tfk.Sequential([
@@ -56,6 +66,9 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
     return vae
     
 def define_vae(enc_sze, ngens):
+    # Convert dimensions to integers to avoid shape conversion issues
+    enc_sze = int(enc_sze)
+    ngens = int(ngens)
     
     tfk  = tf.keras
     tfkl = tf.keras.layers
@@ -64,17 +77,23 @@ def define_vae(enc_sze, ngens):
     prior = tfd.Independent(tfd.Normal(loc=tf.zeros(enc_sze), scale=1),
             reinterpreted_batch_ndims=1)
     
+    # Pre-instantiate the distribution layer
+    ind_normal_layer = tfpl.IndependentNormal(
+        enc_sze,
+        activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
+    )
+    
     encoder = tfk.Sequential([
         tfkl.InputLayer(input_shape=[ngens]),
         tfkl.Dense(256, activation='relu'),
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-        tfkl.Lambda(lambda x: tfpl.IndependentNormal(
-            enc_sze,
-            activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
-        )(x))
+        tfkl.Lambda(lambda x: ind_normal_layer(x))
     ], name='encoder')
+    
+    # Pre-instantiate the distribution layer for decoder
+    ind_normal_decoder = tfpl.IndependentNormal(ngens)
     
     decoder = tfk.Sequential([
         tfkl.InputLayer(input_shape=[enc_sze]),
@@ -82,7 +101,7 @@ def define_vae(enc_sze, ngens):
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(ngens), activation=None),
-        tfkl.Lambda(lambda x: tfpl.IndependentNormal(ngens)(x))
+        tfkl.Lambda(lambda x: ind_normal_decoder(x))
     ], name='decoder')
     
     IPT     = tfk.Input(shape = ngens)
