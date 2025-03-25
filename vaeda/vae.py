@@ -31,12 +31,37 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
             scale = tf.nn.softplus(inputs[..., self.event_size:]) + 1e-5
             return self.make_distribution_fn(loc=loc, scale=scale)
     
-    # Standard normal prior
-    def prior_normal(event_size):
-        return tfd.Independent(
-            tfd.Normal(loc=tf.zeros(event_size), scale=tf.ones(event_size)),
-            reinterpreted_batch_ndims=1
-        )
+    # Create a sampling layer
+    class SamplingLayer(tfkl.Layer):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            
+        def call(self, inputs):
+            dist = inputs
+            return dist.sample()
+            
+        def compute_output_shape(self, input_shape):
+            shape = tf.TensorShape(input_shape).as_list()
+            return shape
+            
+    # KL Divergence layer
+    class KLDivergenceLayer(tfkl.Layer):
+        def __init__(self, event_size, **kwargs):
+            super().__init__(**kwargs)
+            self.event_size = event_size
+            
+        def call(self, inputs):
+            # Create prior
+            prior = tfd.Independent(
+                tfd.Normal(loc=tf.zeros(self.event_size), scale=tf.ones(self.event_size)),
+                reinterpreted_batch_ndims=1
+            )
+            # Calculate KL divergence
+            kl_div = tfd.kl_divergence(inputs, prior)
+            return tf.reduce_mean(kl_div, axis=0)  # Average over batch
+            
+        def compute_output_shape(self, input_shape):
+            return ()  # Scalar output
     
     # Create distribution functions
     def encoder_dist_fn(loc, scale):
@@ -67,13 +92,11 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         name="encoder_dist"
     )(x)
     
-    # Sample from encoder distribution
-    latent_code = encoder_dist.sample()
+    # Sample from encoder distribution using the custom layer
+    latent_code = SamplingLayer(name="latent_sample")(encoder_dist)
     
-    # Calculate KL divergence from prior
-    prior = prior_normal(enc_sze)
-    kl_divergence = tfd.kl_divergence(encoder_dist, prior)
-    kl_loss = tf.reduce_mean(kl_divergence)
+    # Calculate KL divergence
+    kl_loss = KLDivergenceLayer(enc_sze, name="kl_loss")(encoder_dist)
     
     # Build standalone encoder model for later use
     encoder_model = tfk.Model(
@@ -104,7 +127,7 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
     )
     
     # Build the classifier
-    classifier_inputs = tfk.Input(shape=[enc_sze], name="classifier_input")
+    classifier_inputs = tfkl.Input(shape=[enc_sze], name="classifier_input")
     x = tfkl.BatchNormalization()(classifier_inputs)
     classifier_outputs = tfkl.Dense(num_clust, activation='sigmoid')(x)
     
@@ -115,34 +138,33 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         name="classifier"
     )
     
-    # Build the full VAE
+    # Build the full VAE - Connect all the components
     vae_inputs = tfk.Input(shape=[ngens])
-    # Use encoder without the Lambda layers to avoid shape inference issues
     x = tfkl.Dense(256, activation='relu')(vae_inputs)
     x = tfkl.BatchNormalization()(x)
     x = tfkl.Dropout(rate=0.3)(x)
     x = tfkl.Dense(2 * enc_sze)(x)
+    
     encoder_dist_vae = DistributionLayer(
         event_size=enc_sze,
-        make_distribution_fn=encoder_dist_fn,
+        make_distribution_fn=encoder_dist_fn
     )(x)
-    latent = encoder_dist_vae.sample()
     
-    # Calculate KL divergence directly in the model
-    prior = prior_normal(enc_sze)
-    kl_divergence = tfd.kl_divergence(encoder_dist_vae, prior)
-    kl_loss_tensor = tf.reduce_mean(kl_divergence)
+    latent = SamplingLayer()(encoder_dist_vae)
+    kl_loss_tensor = KLDivergenceLayer(enc_sze)(encoder_dist_vae)
     
-    # Convert kl_loss to tensor with shape [batch_size, 1]
-    kl_loss_per_example = tf.ones_like(latent[:, 0:1]) * kl_loss_tensor / tf.cast(tf.shape(latent)[0], tf.float32)
+    # Create an additional layer to reshape KL loss for proper loss function usage
+    kl_loss_repeated = tfkl.Lambda(
+        lambda x: tf.ones_like(latent[:, 0:1]) * x / tf.cast(tf.shape(latent)[0], tf.float32)
+    )(kl_loss_tensor)
     
     reconstruction_dist = decoder_model(latent)
     classification = classifier_model(latent)
     
-    # Create the full VAE model - now include KL loss as an output
+    # Create the full VAE model with KL loss as an output
     vae = tfk.Model(
         inputs=vae_inputs,
-        outputs=[reconstruction_dist, classification, kl_loss_per_example],
+        outputs=[reconstruction_dist, classification, kl_loss_repeated],
         name="vae"
     )
     
@@ -191,12 +213,37 @@ def define_vae(enc_sze, ngens):
             scale = tf.nn.softplus(inputs[..., self.event_size:]) + 1e-5
             return self.make_distribution_fn(loc=loc, scale=scale)
     
-    # Standard normal prior
-    def prior_normal(event_size):
-        return tfd.Independent(
-            tfd.Normal(loc=tf.zeros(event_size), scale=tf.ones(event_size)),
-            reinterpreted_batch_ndims=1
-        )
+    # Create a sampling layer
+    class SamplingLayer(tfkl.Layer):
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            
+        def call(self, inputs):
+            dist = inputs
+            return dist.sample()
+            
+        def compute_output_shape(self, input_shape):
+            shape = tf.TensorShape(input_shape).as_list()
+            return shape
+            
+    # KL Divergence layer
+    class KLDivergenceLayer(tfkl.Layer):
+        def __init__(self, event_size, **kwargs):
+            super().__init__(**kwargs)
+            self.event_size = event_size
+            
+        def call(self, inputs):
+            # Create prior
+            prior = tfd.Independent(
+                tfd.Normal(loc=tf.zeros(self.event_size), scale=tf.ones(self.event_size)),
+                reinterpreted_batch_ndims=1
+            )
+            # Calculate KL divergence
+            kl_div = tfd.kl_divergence(inputs, prior)
+            return tf.reduce_mean(kl_div, axis=0)  # Average over batch
+            
+        def compute_output_shape(self, input_shape):
+            return ()  # Scalar output
     
     # Create distribution functions
     def encoder_dist_fn(loc, scale):
@@ -227,8 +274,11 @@ def define_vae(enc_sze, ngens):
         name="encoder_dist"
     )(x)
     
-    # Sample from encoder distribution
-    latent_code = encoder_dist.sample()
+    # Sample from encoder distribution using the custom layer
+    latent_code = SamplingLayer(name="latent_sample")(encoder_dist)
+    
+    # Calculate KL divergence
+    kl_loss = KLDivergenceLayer(enc_sze, name="kl_loss")(encoder_dist)
     
     # Build standalone encoder model for later use
     encoder_model = tfk.Model(
@@ -258,33 +308,32 @@ def define_vae(enc_sze, ngens):
         name="decoder"
     )
     
-    # Build the full VAE
+    # Build the full VAE - Connect all the components
     vae_inputs = tfk.Input(shape=[ngens])
-    # Use encoder without the Lambda layers to avoid shape inference issues
     x = tfkl.Dense(256, activation='relu')(vae_inputs)
     x = tfkl.BatchNormalization()(x)
     x = tfkl.Dropout(rate=0.3)(x)
     x = tfkl.Dense(2 * enc_sze)(x)
+    
     encoder_dist_vae = DistributionLayer(
         event_size=enc_sze,
-        make_distribution_fn=encoder_dist_fn,
+        make_distribution_fn=encoder_dist_fn
     )(x)
-    latent = encoder_dist_vae.sample()
     
-    # Calculate KL divergence directly in the model
-    prior = prior_normal(enc_sze)
-    kl_divergence = tfd.kl_divergence(encoder_dist_vae, prior)
-    kl_loss_tensor = tf.reduce_mean(kl_divergence)
+    latent = SamplingLayer()(encoder_dist_vae)
+    kl_loss_tensor = KLDivergenceLayer(enc_sze)(encoder_dist_vae)
     
-    # Convert kl_loss to tensor with shape [batch_size, 1]
-    kl_loss_per_example = tf.ones_like(latent[:, 0:1]) * kl_loss_tensor / tf.cast(tf.shape(latent)[0], tf.float32)
+    # Create an additional layer to reshape KL loss for proper loss function usage
+    kl_loss_repeated = tfkl.Lambda(
+        lambda x: tf.ones_like(latent[:, 0:1]) * x / tf.cast(tf.shape(latent)[0], tf.float32)
+    )(kl_loss_tensor)
     
     reconstruction_dist = decoder_model(latent)
     
-    # Create the full VAE model - now include KL loss as an output
+    # Create the full VAE model with KL loss as an output
     vae = tfk.Model(
         inputs=vae_inputs,
-        outputs=[reconstruction_dist, kl_loss_per_example],
+        outputs=[reconstruction_dist, kl_loss_repeated],
         name="vae"
     )
     
