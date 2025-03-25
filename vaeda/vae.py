@@ -31,10 +31,6 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
             scale = tf.nn.softplus(inputs[..., self.event_size:]) + 1e-5
             return self.make_distribution_fn(loc=loc, scale=scale)
     
-    # Define KL regularizer
-    def kl_divergence_fn(q, p, _):
-        return tfd.kl_divergence(q, p)
-    
     # Standard normal prior
     def prior_normal(event_size):
         return tfd.Independent(
@@ -71,17 +67,25 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         name="encoder_dist"
     )(x)
     
-    # Sample from encoder distribution
+    # Sample from encoder distribution with explicit output shape function
+    def sample_output_shape(input_shape):
+        return (input_shape[0], enc_sze)
+        
     latent_code = tfkl.Lambda(
         lambda dist: dist.sample(),
+        output_shape=sample_output_shape,  # Explicitly define output shape
         name="latent_sample"
     )(encoder_dist)
     
-    # Add KL loss
+    # Add KL loss with explicit output shape function
+    def kl_output_shape(input_shape):
+        return ()  # Scalar output
+        
     kl_loss = tfkl.Lambda(
         lambda dist: tf.reduce_mean(
             tfd.kl_divergence(dist, prior_normal(enc_sze))
         ),
+        output_shape=kl_output_shape,  # Explicitly define output shape
         name="kl_loss"
     )(encoder_dist)
     
@@ -216,17 +220,25 @@ def define_vae(enc_sze, ngens):
         name="encoder_dist"
     )(x)
     
-    # Sample from encoder distribution
+    # Sample from encoder distribution with explicit output shape function
+    def sample_output_shape(input_shape):
+        return (input_shape[0], enc_sze)
+        
     latent_code = tfkl.Lambda(
         lambda dist: dist.sample(),
+        output_shape=sample_output_shape,  # Explicitly define output shape
         name="latent_sample"
     )(encoder_dist)
     
-    # Add KL loss
+    # Add KL loss with explicit output shape function
+    def kl_output_shape(input_shape):
+        return ()  # Scalar output
+        
     kl_loss = tfkl.Lambda(
         lambda dist: tf.reduce_mean(
             tfd.kl_divergence(dist, prior_normal(enc_sze))
         ),
+        output_shape=kl_output_shape,  # Explicitly define output shape
         name="kl_loss"
     )(encoder_dist)
     
