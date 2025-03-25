@@ -218,3 +218,67 @@ def define_vae(enc_sze, ngens):
     
     # Sample from encoder distribution
     latent_code = tfkl.Lambda(
+        lambda dist: dist.sample(),
+        name="latent_sample"
+    )(encoder_dist)
+    
+    # Add KL loss
+    kl_loss = tfkl.Lambda(
+        lambda dist: tf.reduce_mean(
+            tfd.kl_divergence(dist, prior_normal(enc_sze))
+        ),
+        name="kl_loss"
+    )(encoder_dist)
+    
+    # Add KL loss as activity regularizer
+    encoder_model = tfk.Model(
+        inputs=encoder_inputs, 
+        outputs=latent_code,
+        name="encoder"
+    )
+    encoder_model.add_loss(kl_loss)
+    
+    # Build the decoder
+    decoder_inputs = tfk.Input(shape=[enc_sze], name="decoder_input")
+    x = tfkl.Dense(256, activation='relu')(decoder_inputs)
+    x = tfkl.BatchNormalization()(x)
+    x = tfkl.Dropout(rate=0.3)(x)
+    x = tfkl.Dense(2 * ngens)(x)  # mean and log_var for output
+    
+    # Create decoder distribution
+    decoder_dist = DistributionLayer(
+        event_size=ngens,
+        make_distribution_fn=decoder_dist_fn,
+        name="decoder_dist"
+    )(x)
+    
+    # Create decoder model
+    decoder_model = tfk.Model(
+        inputs=decoder_inputs,
+        outputs=decoder_dist,
+        name="decoder"
+    )
+    
+    # Build the full VAE
+    vae_inputs = tfk.Input(shape=[ngens])
+    latent = encoder_model(vae_inputs)
+    reconstruction_dist = decoder_model(latent)
+    
+    # Create the full VAE model
+    vae = tfk.Model(
+        inputs=vae_inputs,
+        outputs=reconstruction_dist,
+        name="vae"
+    )
+    
+    # Define negative log-likelihood loss
+    def nll(x, rv_x):
+        return -tf.reduce_sum(rv_x.log_prob(x), axis=-1)
+    
+    # Compile the model
+    vae.compile(
+        optimizer=tf.optimizers.Adamax(learning_rate=1e-3),
+        loss=nll
+    )
+    
+    return vae, encoder_model
