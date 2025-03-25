@@ -27,7 +27,10 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-        tfkl.Lambda(lambda x: ind_normal_layer(x))
+        tfkl.Lambda(
+            lambda x: ind_normal_layer(x),
+            output_shape=[enc_sze]
+        )
     ], name='encoder')
     
     # Pre-instantiate the distribution layer for decoder
@@ -39,7 +42,10 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(ngens), activation=None),
-        tfkl.Lambda(lambda x: ind_normal_decoder(x))
+        tfkl.Lambda(
+            lambda x: ind_normal_decoder(x),
+            output_shape=[ngens]
+        )
     ], name='decoder')
     
     clust_classifier = tfk.Sequential([
@@ -89,7 +95,10 @@ def define_vae(enc_sze, ngens):
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-        tfkl.Lambda(lambda x: ind_normal_layer(x))
+        tfkl.Lambda(
+            lambda x: ind_normal_layer(x),
+            output_shape=[enc_sze]
+        )
     ], name='encoder')
     
     # Pre-instantiate the distribution layer for decoder
@@ -101,7 +110,10 @@ def define_vae(enc_sze, ngens):
         tfkl.BatchNormalization(),
         tfkl.Dropout(rate=0.3),
         tfkl.Dense(tfpl.IndependentNormal.params_size(ngens), activation=None),
-        tfkl.Lambda(lambda x: ind_normal_decoder(x))
+        tfkl.Lambda(
+            lambda x: ind_normal_decoder(x),
+            output_shape=[ngens]
+        )
     ], name='decoder')
     
     IPT     = tfk.Input(shape = [ngens])
