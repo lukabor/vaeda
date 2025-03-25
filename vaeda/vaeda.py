@@ -275,12 +275,11 @@ def vaeda(adata, layer=None, filter_genes=True, verbose=0, save_dir=None,
         callback2 = tf.keras.callbacks.LearningRateScheduler(scheduler)
 
         hist = vae.fit(x=[X_train],
-                       y=[X_train, clust_train],
-                       validation_data=([X_test], [X_test, clust_test]),
-                       epochs=max_eps_vae, 
-                       use_multiprocessing=True,
-                       callbacks=[callback, callback2],
-                       verbose=verbose)
+               y=[X_train, clust_train],
+               validation_data=([X_test], [X_test, clust_test]),
+               epochs=max_eps_vae, 
+               callbacks=[callback, callback2],
+               verbose=verbose)
 
         encoder = vae.get_layer('encoder')
         tf.random.set_seed(seeds[7])
