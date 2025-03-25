@@ -257,7 +257,7 @@ def vaeda(adata, layer=None, filter_genes=True, verbose=0, save_dir=None,
         made_new=True
         
         tf.random.set_seed(seeds[6])
-        vae = define_clust_vae(enc_sze, ngens, clust.max()+1, LR=LR_vae, clust_weight=clust_weight)
+        vae, encoder = define_clust_vae(enc_sze, ngens, clust.max()+1, LR=LR_vae, clust_weight=clust_weight)
 
         callback = tf.keras.callbacks.EarlyStopping(monitor='val_loss',
                                                     mode = 'min',
@@ -281,7 +281,6 @@ def vaeda(adata, layer=None, filter_genes=True, verbose=0, save_dir=None,
                callbacks=[callback, callback2],
                verbose=verbose)
 
-        encoder = vae.get_layer('encoder')
         tf.random.set_seed(seeds[7])
         encoding = np.array(tf.convert_to_tensor(encoder(X)))
 
