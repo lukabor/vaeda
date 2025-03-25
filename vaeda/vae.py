@@ -48,7 +48,7 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
         tfkl.Dense(num_clust, activation='sigmoid')
     ], name='clust_classifier')
     
-    IPT     = tfk.Input(shape = ngens)
+    IPT     = tfk.Input(shape = [ngens])
     z       = encoder(IPT)
     OPT1    = decoder(z)
     OPT2    = clust_classifier(z)
@@ -104,7 +104,7 @@ def define_vae(enc_sze, ngens):
         tfkl.Lambda(lambda x: ind_normal_decoder(x))
     ], name='decoder')
     
-    IPT     = tfk.Input(shape = ngens)
+    IPT     = tfk.Input(shape = [ngens])
     z       = encoder(IPT)
     OPT1    = decoder(z)
     vae = tfk.Model(inputs=[IPT],
