@@ -1,11 +1,9 @@
-# - PU
 import numpy as np
-import sklearn
 import tensorflow as tf
 import tf_keras as tfk
-from sklearn.model_selection import RepeatedKFold, train_test_split
-from sklearn.neighbors import NearestNeighbors
 from rich.progress import Progress
+from sklearn.model_selection import RepeatedKFold
+from sklearn.neighbors import NearestNeighbors
 
 from .classifier import define_classifier
 
@@ -25,21 +23,21 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
 
     i = 0
     with Progress() as progress:
-        train_task = progress.add_task(description="", total = len(rkf.split(U)))
+        train_task = progress.add_task(description="", total=len(rkf.split(U)))
         for test, train in rkf.split(U):
             i += 1
-            progress.update(train_task, description = f"{i!s}/{(N * k)!s} iterations", refresh=True)
+            progress.update(train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True)
 
             X = np.vstack([U[train, :], P])
-            Y = np.concatenate([np.zeros([len(train)]), np.ones([P.shape[0]])])
+            Y = np.concatenate([np.zeros(shape=[len(train)]), np.ones(shape=[P.shape[0]])])
 
             x = U[test, :]
 
             if clss == "NN":
                 # DEFINE MODEL
-                np.random.seed(1)
-                tf.random.set_seed(seeds[1])
-                classifier = define_classifier(X.shape[1], num_layers=num_layers)
+                np.random.seed(seed=1)
+                tf.random.set_seed(seed=seeds[1])
+                classifier = define_classifier(ngens=X.shape[1], num_layers=num_layers)
 
                 # shuffle training data
                 ind = np.arange(X.shape[0])
@@ -94,10 +92,10 @@ def epoch_PU(U, P, k, N, cls_eps, seeds, puPat=5, puLR=1e-3, num_layers=1, stop_
 
     i = 0
     with Progress() as progress:
-        train_task = progress.add_task(description="", total = len(rkf.split(U)))
+        train_task = progress.add_task(description="", total=len(rkf.split(U)))
         for _, train in rkf.split(U):
             i += 1
-            progress.update(train_task, description = f"{i!s}/{(N * k)!s} iterations", refresh=True)
+            progress.update(train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True)
             X = np.vstack([U[train, :], P])
             Y = np.concatenate([np.zeros([len(train)]), np.ones([P.shape[0]])])
 
@@ -112,7 +110,9 @@ def epoch_PU(U, P, k, N, cls_eps, seeds, puPat=5, puLR=1e-3, num_layers=1, stop_
             np.random.shuffle(ind)
 
             auc = tfk.metrics.AUC(curve="PR", name="auc")
-            classifier.compile(optimizer=tfk.optimizers.Adam(learning_rate=puLR), loss="binary_crossentropy", metrics=[auc])
+            classifier.compile(
+                optimizer=tfk.optimizers.Adam(learning_rate=puLR), loss="binary_crossentropy", metrics=[auc]
+            )
 
             tf.random.set_seed(seeds[3])
             hist = classifier.fit(x=X, y=Y, epochs=cls_eps, verbose=False)

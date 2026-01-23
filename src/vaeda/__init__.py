@@ -1,7 +1,7 @@
 from .classifier import define_classifier
 from .cluster import cluster, fast_cluster
 from .mk_doublets import sim_inflate
-from .PU import PU, epoch_PU
+from .pu import PU, epoch_PU
 from .vae import define_clust_vae
 from .vaeda import vaeda
 

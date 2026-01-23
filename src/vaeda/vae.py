@@ -1,4 +1,3 @@
-# - vae
 import tensorflow as tf
 import tf_keras as tfk
 import tf_keras.layers as tfkl
@@ -7,7 +6,6 @@ from tensorflow_probability import layers as tfpl
 
 
 def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
-
     prior = tfd.Independent(tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1)
 
     encoder = tfk.Sequential(
@@ -64,8 +62,6 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
 
 
 def define_vae(enc_sze, ngens):
-
-
     prior = tfd.Independent(tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1)
 
     encoder = tfk.Sequential(

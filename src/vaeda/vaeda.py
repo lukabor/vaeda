@@ -6,6 +6,9 @@ import numpy as np
 import numpy.typing as npt
 import scipy.sparse as scs
 import tensorflow as tf
+
+# from tensorflow import keras as tfk
+import tf_keras as tfk
 from kneed import KneeLocator
 from loguru import logger
 from scipy.signal import savgol_filter
@@ -16,41 +19,39 @@ from sklearn.decomposition import PCA
 from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
-# from tensorflow import keras as tfk
-import tf_keras as tfk
 
-from vaeda.cluster import cluster, fast_cluster
-from vaeda.logger import init_logger
-from vaeda.mk_doublets import sim_inflate
-from vaeda.PU import PU, epoch_PU
-from vaeda.vae import define_clust_vae
+from .cluster import cluster, fast_cluster
+from .logger import init_logger
+from .mk_doublets import sim_inflate
+from .pu import PU, epoch_PU
+from .vae import define_clust_vae
 
 
 # TODO: specify actual verbosity levels instead of sending everything to the logger as INFO
 def vaeda(
     adata: ad.AnnData,
-    layer: str | None =None,
-    filter_genes: bool=True,
-    verbose: int=0,
-    save_dir: Path | None=None,
-    gene_thresh: float=0.01,
-    num_hvgs: int=2000,
-    pca_comp: int=30,
-    quant: float=0.25,
-    enc_sze: int=5,
-    max_eps_vae: int=1000,
-    pat_vae: int=20,
-    LR_vae: float=1e-3,
-    clust_weight: int=20000,
-    rate: float=-0.75,
-    N: int=1,
-    k_mult: int=2,
-    max_eps_PU: int=250,
-    LR_PU: float=1e-3,
-    mu: int | None=None,
-    remove_homos: bool=True,
-    use_old: bool=False,
-    seed: int | None=None,
+    layer: str | None = None,
+    filter_genes: bool = True,
+    verbose: int = 0,
+    save_dir: Path | None = None,
+    gene_thresh: float = 0.01,
+    num_hvgs: int = 2000,
+    pca_comp: int = 30,
+    quant: float = 0.25,
+    enc_sze: int = 5,
+    max_eps_vae: int = 1000,
+    pat_vae: int = 20,
+    LR_vae: float = 1e-3,
+    clust_weight: int = 20000,
+    rate: float = -0.75,
+    N: int = 1,
+    k_mult: int = 2,
+    max_eps_PU: int = 250,
+    LR_PU: float = 1e-3,
+    mu: int | None = None,
+    remove_homos: bool = True,
+    use_old: bool = False,
+    seed: int | None = None,
 ) -> ad.AnnData:
     """
     Parameters
@@ -120,7 +121,9 @@ def vaeda(
     if layer is None:
         x_mat: npt.NDArray[np.float64] = adata.X.toarray() if issparse(adata.X) else adata.X
     else:
-        x_mat: npt.NDArray[np.float64] = adata.layers[layer] if issparse(adata.layers[layer]) else adata.layers[layer]
+        x_mat: npt.NDArray[np.float64] = (
+            adata.layers[layer].toarray() if issparse(adata.layers[layer]) else adata.layers[layer]
+        )
 
     old_sim = False
     if save_dir is not None:
@@ -168,7 +171,6 @@ def vaeda(
             np.random.seed(seeds[0])  # *
             hvgs = np.argpartition(var, -num_hvgs)[-num_hvgs:]
             x_mat = x_mat[:, hvgs]
-
 
     # HYPERPARAMS
     neighbors = int(np.sqrt(x_mat.shape[0]))
@@ -246,24 +248,22 @@ def vaeda(
     ngens = x_mat.shape[1]
 
     # VAE
-    old_VAE = False
+    old_vae = False
     if save_dir is not None:
         vae_path_real = save_dir / "embedding_real.npy"
         vae_path_sim = save_dir / "embedding_sim.npy"
         if Path(vae_path_real).exists() & Path(vae_path_sim).exists():
-            old_VAE = True
+            old_vae = True
 
-    if old_VAE & use_old:  # if the old files exist and we want to use them...
+    if old_vae & use_old:  # if the old files exist and we want to use them...
         if verbose != 0:
             logger.info("using existing encoding")
         encoding_real = np.load(vae_path_real)
         encoding_sim = np.load(vae_path_sim)
         encoding = np.vstack([encoding_real, encoding_sim])
-        made_new = False
     else:  # otherwise, make new
         if verbose != 0:
             logger.info("generating VAE encoding")
-        made_new = True
 
         tf.random.set_seed(seeds[6])
         vae = define_clust_vae(enc_sze, ngens, clust.max() + 1, LR=LR_vae, clust_weight=clust_weight)
@@ -297,10 +297,7 @@ def vaeda(
             np.save(vae_path_real, encoding[Y == 0, :])
             np.save(vae_path_sim, encoding[Y == 1, :])
 
-    #######################################################
-    ######################### PU ##########################
-    #######################################################
-
+    #### PU ####
     if save_dir is not None:
         np.save(save_dir / "knn_feature_real.npy", knn_feature[Y == 0])
         np.save(save_dir / "knn_feature_sim.npy", knn_feature[Y == 1])
@@ -313,14 +310,14 @@ def vaeda(
     # PU BAGGING
     if verbose != 0:
         logger.info("starting PU Learning")
-    U = encoding[Y == 0, :]
-    P = encoding[Y == 1, :]
+    u = encoding[Y == 0, :]
+    p = encoding[Y == 1, :]
 
-    num_cells = P.shape[0] * k_mult
-    k = int(U.shape[0] / num_cells)
+    num_cells = p.shape[0] * k_mult
+    k = int(u.shape[0] / num_cells)
     k = max(k, 2)
 
-    hist = epoch_PU(U, P, k, N, max_eps_PU, seeds=seeds[8:], puLR=LR_PU, verbose=verbose)  # seeds 8-12
+    hist = epoch_PU(u, p, k, N, max_eps_PU, seeds=seeds[8:], puLR=LR_PU, verbose=verbose)  # seeds 8-12
 
     y = np.log(hist.history["loss"])
     x = np.arange(len(y))
@@ -343,15 +340,13 @@ def vaeda(
         case _:
             knee = 250
 
-    preds, preds_on_p, *_ = PU(U, P, k, N, knee, seeds=seeds[8:], puLR=LR_PU, verbose=verbose)
+    preds, preds_on_p, *_ = PU(u, p, k, N, knee, seeds=seeds[8:], puLR=LR_PU, verbose=verbose)
 
     if save_dir is not None:
         np.save(save_dir / "scores.npy", preds)
         np.save(save_dir / "scores_on_sim.npy", preds_on_p)
 
-    #######################################################
-    ####################### CALLS #########################
-    #######################################################
+    #### CALLS ####
     maximum = np.max([np.max(preds), np.max(preds_on_p)])
     minimum = np.min([np.min(preds), np.min(preds_on_p)])
 

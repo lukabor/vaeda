@@ -1,13 +1,11 @@
 from collections.abc import Sequence
-import random
 
 import numpy as np
 import numpy.typing as npt
 
+
 def sim_inflate(
-    X: npt.NDArray[np.float32],
-    frac_doublets: float | None = None,
-    seeds: Sequence[int] = (1234, 15232, 3060309)
+    X: npt.NDArray[np.float32], frac_doublets: float | None = None, seeds: Sequence[int] = (1234, 15232, 3060309)
 ) -> tuple[npt.NDArray[np.float64], list[int], list[int]]:
     if frac_doublets is None:
         num_doublets = 1 * X.shape[0]
@@ -31,7 +29,6 @@ def sim_inflate(
     lib2 = np.sum(X2, axis=1)
 
     lib_sze = np.maximum.reduce([lib1, lib2])
-    high = np.max(lib_sze)
 
     inflated_sze = np.zeros([len(lib_sze)])
     for i, low in enumerate(lib_sze):
