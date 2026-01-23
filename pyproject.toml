@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "vaeda"
+version = "0.1.0"
+description="A computational tool for annotating doublets in scRNAseq data."
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    { name = "Hannah Schriever", email = "hcs31@pitt.edu" }
+]
+license= {text = "MIT"}
+dependencies = [
+    "anndata>=0.12.2",
+    "igraph>=1.0.0",
+    "kneed>=0.8.5",
+    "leidenalg>=0.11.0",
+    "loguru>=0.7.3",
+    "numpy>=2.3.3",
+    "scanpy>=1.11.4",
+    "scikit-learn>=1.7.2",
+    "scipy>=1.16.2",
+    "tensorflow>=2.20.0",
+    "tensorflow-probability[tf]>=0.25.0",
+]
+classifiers = [
+    "Programming Language :: Python",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Rust",
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Typing :: Typed",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+
+[project.urls]
+repository="https://github.com/kostkalab/vaeda"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.13.3",
+    "ty>=0.0.1a21",
+]

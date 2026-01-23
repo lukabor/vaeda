@@ -8,3 +8,7 @@ vaeda/__pycache__/
 *.txt
 cache
 doc/.ipynb_checkpoints/
+dist/
+.ruff_cache/
+.ipynb_checkpoints/
+**/__pycache__
