@@ -1775,7 +1775,7 @@ wheels = [
 
 [[package]]
 name = "vaeda"
-version = "0.2.5"
+version = "0.2.6"
 source = { editable = "." }
 dependencies = [
     { name = "anndata" },
@@ -1804,7 +1804,7 @@ requires-dist = [
     { name = "kneed", specifier = ">=0.8.5" },
     { name = "leidenalg", specifier = ">=0.11.0" },
     { name = "loguru", specifier = ">=0.7.0" },
-    { name = "numpy", specifier = ">=2.3.0" },
+    { name = "numpy", specifier = ">=2.1.0" },
     { name = "scanpy", specifier = ">=1.11.0" },
     { name = "scikit-learn", specifier = ">=1.7" },
     { name = "scipy", specifier = ">1.12,<=1.15.3" },

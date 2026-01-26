@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "vaeda"
-version = "0.2.5"
+version = "0.2.6"
 description="A computational tool for annotating doublets in scRNAseq data."
 readme = "README.md"
 requires-python = ">=3.12"
@@ -18,7 +18,7 @@ dependencies = [
     "kneed>=0.8.5",
     "leidenalg>=0.11.0",
     "loguru>=0.7.0",
-    "numpy>=2.3.0",
+    "numpy>=2.1.0",
     "scanpy>=1.11.0",
     "scikit-learn>=1.7",
     "scipy>1.12,<=1.15.3",
