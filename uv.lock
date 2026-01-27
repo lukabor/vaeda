@@ -1,5 +1,5 @@
 version = 1
-revision = 2
+revision = 3
 requires-python = ">=3.12"
 resolution-markers = [
     "python_full_version >= '3.13'",
@@ -1407,6 +1407,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/32/e9/c1d43543da87cd27e8e2a74db85cf0b6c5cff2d5f04a86bd584d2fbc2bb0/scanpy-1.11.5-py3-none-any.whl", hash = "sha256:fcd383ddcf7acbf7c0ca232c25ad51b00aec9f8d2f7c8954b8c6ee0962257166", size = 2097836, upload-time = "2025-10-21T08:24:41.741Z" },
 ]
 
+[package.optional-dependencies]
+leiden = [
+    { name = "igraph" },
+    { name = "leidenalg" },
+]
+
 [[package]]
 name = "scikit-learn"
 version = "1.8.0"
@@ -1775,16 +1781,14 @@ wheels = [
 
 [[package]]
 name = "vaeda"
-version = "0.2.6"
+version = "0.2.7"
 source = { editable = "." }
 dependencies = [
     { name = "anndata" },
-    { name = "igraph" },
     { name = "kneed" },
-    { name = "leidenalg" },
     { name = "loguru" },
     { name = "numpy" },
-    { name = "scanpy" },
+    { name = "scanpy", extra = ["leiden"] },
     { name = "scikit-learn" },
     { name = "scipy" },
     { name = "tensorflow" },
@@ -1800,12 +1804,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "anndata", specifier = ">=0.12.0" },
-    { name = "igraph", specifier = ">=1.0.0" },
     { name = "kneed", specifier = ">=0.8.5" },
-    { name = "leidenalg", specifier = ">=0.11.0" },
     { name = "loguru", specifier = ">=0.7.0" },
     { name = "numpy", specifier = ">=2.1.0" },
-    { name = "scanpy", specifier = ">=1.11.0" },
+    { name = "scanpy", extras = ["leiden"], specifier = ">=1.11.0" },
     { name = "scikit-learn", specifier = ">=1.7" },
     { name = "scipy", specifier = ">1.12,<=1.15.3" },
     { name = "tensorflow", specifier = ">=2.20" },

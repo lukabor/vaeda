@@ -23,7 +23,7 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
 
     i = 0
     with Progress() as progress:
-        train_task = progress.add_task(description="", total=len(rkf.split(U)))
+        train_task = progress.add_task(description="", total=k)
         for test, train in rkf.split(U):
             i += 1
             progress.update(train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True)
@@ -92,7 +92,7 @@ def epoch_PU(U, P, k, N, cls_eps, seeds, puPat=5, puLR=1e-3, num_layers=1, stop_
 
     i = 0
     with Progress() as progress:
-        train_task = progress.add_task(description="", total=len(rkf.split(U)))
+        train_task = progress.add_task(description="", total=k)
         for _, train in rkf.split(U):
             i += 1
             progress.update(train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True)
