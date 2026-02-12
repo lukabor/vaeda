@@ -2,9 +2,62 @@
 
 vaeda (variaitonal auto-encoder (vae) for doublet annotation (da)) is a python package for doublet annotation in single cell RNA-sequencing. For method details and comparisons to alternative doublet annotation tools, see the [vaeda publication](https://academic.oup.com/bioinformatics/article/39/1/btac720/6808614).
 
-#### Installation
+## Installation
 
-You can install ```vaeda``` using conda and pip as follows:
+### Recommended: Using uv (Modern Python Package Manager)
+
+The easiest and most reliable way to install vaeda with all its dependencies:
+
+```bash
+# Install uv if you haven't already
+# See: https://docs.astral.sh/uv/getting-started/installation/
+
+# Create a virtual environment
+uv venv vaeda-env
+
+# Activate the virtual environment
+source vaeda-env/bin/activate  # On Windows: vaeda-env\Scripts\activate
+
+# Install released version from PyPI
+uv pip install vaeda
+
+# OR install from source (run inside a cloned repository)
+uv pip install .
+```
+
+**Why uv?** vaeda has complex dependencies (TensorFlow, TensorFlow Probability, tf_keras) that require careful version coordination due to Keras 2/3 compatibility issues. uv handles this automatically.
+
+#### For Development/Contributors
+
+If you've cloned the repository and want the exact development environment:
+
+```bash
+uv sync  # Uses uv.lock for exact reproducibility
+```
+
+This installs the precise versions used by the maintainers.
+
+### Alternative: Using pip/conda
+
+If you prefer traditional tools, use these **updated** instructions:
+
+```bash
+# Create and activate environment
+conda create -n vaeda_env python=3.13
+conda activate vaeda_env
+
+# Install vaeda and dependencies (handles tf_keras compatibility automatically)
+pip install vaeda
+```
+
+**Note:** Recent versions (0.0.31+) include compatibility fixes for TensorFlow 2.13+ and Keras 3.x. The old manual dependency pinning is no longer needed.
+
+### Legacy Installation (Not Recommended)
+
+<details>
+<summary>Click to see original instructions (deprecated)</summary>
+
+These instructions are from the original 2022 release and will not work with current Python/TensorFlow versions:
 
 ```
 conda create -n vaeda_env python=3.8
@@ -16,6 +69,10 @@ pip3 install 'scanpy[leiden]'==1.8.0
 pip3 install typing-extensions==3.7.4 absl-py==0.10 six==1.15.0 wrapt==1.12.1 xlrd==1.2.0
 pip3 install -i https://test.pypi.org/simple/ vaeda==0.0.30
 ```
+
+**⚠️ Warning:** These instructions are outdated and will fail with current TensorFlow/Python versions.
+
+</details>
 
 #### Quick Start
 ```

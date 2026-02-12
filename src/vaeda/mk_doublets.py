@@ -1,0 +1,42 @@
+from collections.abc import Sequence
+
+import numpy as np
+import numpy.typing as npt
+
+
+def sim_inflate(
+    X: npt.NDArray[np.float32], frac_doublets: float | None = None, seeds: Sequence[int] = (1234, 15232, 3060309)
+) -> tuple[npt.NDArray[np.float64], list[int], list[int]]:
+    if frac_doublets is None:
+        num_doublets = 1 * X.shape[0]
+    else:
+        num_doublets = int(frac_doublets * X.shape[0])
+
+    ind1 = np.arange(X.shape[0])
+    ind2 = np.arange(X.shape[0])
+
+    np.random.seed(seed=seeds[0])
+    np.random.shuffle(x=ind1)
+    np.random.seed(seed=seeds[1])
+    np.random.shuffle(x=ind2)
+
+    X1 = np.copy(X)[ind1, :]
+    X2 = np.copy(X)[ind2, :]
+
+    res = X1 + X2
+
+    lib1 = np.sum(X1, axis=1)
+    lib2 = np.sum(X2, axis=1)
+
+    lib_sze = np.maximum.reduce([lib1, lib2])
+
+    inflated_sze = np.zeros([len(lib_sze)])
+    for i, low in enumerate(lib_sze):
+        g = np.random.Generator(np.random.PCG64(seeds[2]))
+        inflated_sze[i] = g.choice(lib_sze[lib_sze >= low])
+
+    ls = np.sum(res, axis=1)
+    sf = inflated_sze / ls
+    res = np.multiply(res.T, sf).T
+
+    return res[:num_doublets, :], ind1[:num_doublets], ind2[:num_doublets]
