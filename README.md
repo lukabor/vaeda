@@ -40,7 +40,7 @@ vaeda (variational auto-encoder for doublet annotation) is a Python package for 
 # See: https://docs.astral.sh/uv/getting-started/installation/
 
 # Install from GitHub (specific release)
-uv pip install git+https://github.com/lukabor/vaeda.git@v0.1.0
+uv pip install git+https://github.com/lukabor/vaeda.git@v0.1.1
 
 # Or install from a cloned repository
 git clone https://github.com/lukabor/vaeda.git
@@ -52,7 +52,7 @@ uv pip install .
 
 ```bash
 # Install from GitHub (specific release)
-pip install git+https://github.com/lukabor/vaeda.git@v0.1.0
+pip install git+https://github.com/lukabor/vaeda.git@v0.1.1
 
 # Or from a cloned repository
 git clone https://github.com/lukabor/vaeda.git
@@ -77,7 +77,7 @@ conda create -n vaeda_env python=3.13
 conda activate vaeda_env
 
 # Use pip to install vaeda (not conda)
-pip install git+https://github.com/lukabor/vaeda.git@v0.1.0
+pip install git+https://github.com/lukabor/vaeda.git@v0.1.1
 ```
 
 ## Quick Start
@@ -255,11 +255,44 @@ Main function for doublet annotation.
 | `pca_comp` | `int` | `30` | Number of principal components |
 | `enc_sze` | `int` | `5` | Size of VAE encoding |
 | `seed` | `int \| None` | `None` | Random seed for reproducibility |
+| `optimized` | `bool` | `False` | Use vectorized doublet generation O(n log n) vs legacy O(n²). Faster on large datasets, ~98% agreement with legacy. |
 
 **Returns:** `AnnData` with added fields:
 - `adata.obsm['vaeda_embedding']`: VAE encoding for cells
 - `adata.obs['vaeda_scores']`: Doublet probability scores
 - `adata.obs['vaeda_calls']`: Binary doublet/singlet calls
+
+## Reproducibility
+
+vaeda uses stochastic algorithms (VAE training, PU learning) that introduce natural run-to-run variation. Even with the same seed, consecutive runs may produce slightly different results due to non-determinism in TensorFlow/Keras operations.
+
+**Typical run-to-run variation (same seed, same code):**
+
+| Metric | Expected Range |
+|--------|----------------|
+| Classification agreement | ~99% |
+| Score correlation (Pearson r) | > 0.9 |
+| Score correlation (Spearman r) | > 0.9 |
+
+This variation is inherent to the deep learning components and does not affect the scientific validity of the results. The doublet/singlet classifications are highly stable across runs.
+
+**For maximum reproducibility:**
+
+```python
+import os
+os.environ["TF_DETERMINISTIC_OPS"] = "1"
+os.environ["TF_CUDNN_DETERMINISTIC"] = "1"
+
+import tensorflow as tf
+tf.random.set_seed(42)
+tf.config.threading.set_inter_op_parallelism_threads(1)
+tf.config.threading.set_intra_op_parallelism_threads(1)
+
+import vaeda
+result = vaeda.vaeda(adata, seed=42)
+```
+
+Note: Enabling deterministic operations may significantly slow down computation.
 
 ## Other Doublet Detection Tools
 
