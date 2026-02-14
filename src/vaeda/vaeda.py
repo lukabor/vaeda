@@ -329,7 +329,10 @@ def vaeda(
     kneedle = KneeLocator(x, y, S=10, curve="convex", direction="decreasing")
 
     knee = kneedle.knee
-
+    # provide fallback value if there are too few objects to start with
+    if knee is None:
+        knee = len(y) // 2  
+    
     match knee:
         case knee if num < 500:
             knee = knee + 100

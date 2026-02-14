@@ -166,3 +166,62 @@ class TestVaedaOutput:
 
         # Then
         assert "vaeda_embedding" in result.obsm
+
+class TestVaedaScoreValidation:
+    """Test vaeda score validity."""
+
+    def test_doublet_scores_are_non_negative(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then all doublet scores should be >= 0
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+        scores = result.obs["vaeda_scores"]
+
+        # Then
+        assert scores.min() >= 0.0
+
+    def test_doublet_scores_do_not_exceed_one(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then all doublet scores should be <= 1
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+        scores = result.obs["vaeda_scores"]
+
+        # Then
+        assert scores.max() <= 1.0
+
+    def test_doublet_calls_are_binary(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then doublet calls should be binary values
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+        valid_values = {0, 1, True, False, "singlet", "doublet"}
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+        calls = result.obs["vaeda_calls"]
+        unique_values = set(calls.unique())
+
+        # Then
+        assert unique_values.issubset(valid_values)
