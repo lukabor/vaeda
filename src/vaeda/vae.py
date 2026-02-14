@@ -6,7 +6,9 @@ from tensorflow_probability import layers as tfpl
 
 
 def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
-    prior = tfd.Independent(tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1)
+    prior = tfd.Independent(
+        tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1
+    )
 
     encoder = tfk.Sequential(
         [
@@ -15,7 +17,9 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
             tfkl.BatchNormalization(),
             tfkl.Dropout(rate=0.3),
             tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-            tfpl.IndependentNormal(enc_sze, activity_regularizer=tfpl.KLDivergenceRegularizer(prior)),
+            tfpl.IndependentNormal(
+                enc_sze, activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
+            ),
         ],
         name="encoder",
     )
@@ -62,7 +66,9 @@ def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
 
 
 def define_vae(enc_sze, ngens):
-    prior = tfd.Independent(tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1)
+    prior = tfd.Independent(
+        tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1
+    )
 
     encoder = tfk.Sequential(
         [
@@ -71,7 +77,9 @@ def define_vae(enc_sze, ngens):
             tfkl.BatchNormalization(),
             tfkl.Dropout(rate=0.3),
             tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-            tfpl.IndependentNormal(enc_sze, activity_regularizer=tfpl.KLDivergenceRegularizer(prior)),
+            tfpl.IndependentNormal(
+                enc_sze, activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
+            ),
         ],
         name="encoder",
     )

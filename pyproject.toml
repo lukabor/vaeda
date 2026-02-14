@@ -102,6 +102,7 @@ exclude = [
     ".svn",
     "__pypackages__",
 ]
+extend-exclude = ["*.ipynb"]
 
 [tool.ruff.format]
 quote-style = "double"

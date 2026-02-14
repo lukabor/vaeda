@@ -7,4 +7,5 @@ import pytest
 def disable_gpu():
     """Disable GPU for tests to avoid CUDA compatibility issues."""
     import os
+
     os.environ["CUDA_VISIBLE_DEVICES"] = "-1"

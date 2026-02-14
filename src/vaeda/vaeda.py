@@ -119,10 +119,14 @@ def vaeda(
         use_old = False
 
     if layer is None:
-        x_mat: npt.NDArray[np.float64] = adata.X.toarray() if issparse(adata.X) else adata.X
+        x_mat: npt.NDArray[np.float64] = (
+            adata.X.toarray() if issparse(adata.X) else adata.X
+        )
     else:
         x_mat: npt.NDArray[np.float64] = (
-            adata.layers[layer].toarray() if issparse(adata.layers[layer]) else adata.layers[layer]
+            adata.layers[layer].toarray()
+            if issparse(adata.layers[layer])
+            else adata.layers[layer]
         )
 
     old_sim = False
@@ -189,7 +193,9 @@ def vaeda(
     knn = NearestNeighbors(n_neighbors=neighbors)
     knn.fit(pca_proj, Y)
     graph = knn.kneighbors_graph(pca_proj)
-    knn_feature = np.squeeze(np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors))  # sum across rows
+    knn_feature = np.squeeze(
+        np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
+    )  # sum across rows
 
     # estimate true faction of doublets
     quantile = np.quantile(knn_feature[Y == 1], quant)
@@ -216,7 +222,7 @@ def vaeda(
     np.random.seed(seeds[5])  # *
     x_mat = scaler.transform(x_mat.T).T
 
-    #### CLUSTER ####
+    # CLUSTER ####
     if x_mat.shape[0] >= 1000:
         clust = fast_cluster(x_mat, comp=pca_comp)
     else:
@@ -240,8 +246,10 @@ def vaeda(
     elif save_dir is not None:
         np.save(save_dir / "which_sim_doubs.npy", ind)
 
-    #### VAE ####
-    X_train, X_test, clust_train, clust_test = train_test_split(x_mat, clust, test_size=0.1, random_state=12345)
+    # VAE ####
+    X_train, X_test, clust_train, clust_test = train_test_split(
+        x_mat, clust, test_size=0.1, random_state=12345
+    )
     clust_train = tf.one_hot(clust_train, depth=clust.max() + 1)
     clust_test = tf.one_hot(clust_test, depth=clust.max() + 1)
 
@@ -266,10 +274,17 @@ def vaeda(
             logger.info("generating VAE encoding")
 
         tf.random.set_seed(seeds[6])
-        vae = define_clust_vae(enc_sze, ngens, clust.max() + 1, LR=LR_vae, clust_weight=clust_weight)
+        vae = define_clust_vae(
+            enc_sze, ngens, clust.max() + 1, LR=LR_vae, clust_weight=clust_weight
+        )
 
         callback = tfk.callbacks.EarlyStopping(
-            monitor="val_loss", mode="min", min_delta=0, patience=pat_vae, verbose=0, restore_best_weights=False
+            monitor="val_loss",
+            mode="min",
+            min_delta=0,
+            patience=pat_vae,
+            verbose=0,
+            restore_best_weights=False,
         )
 
         def scheduler(epoch, lr):
@@ -297,7 +312,7 @@ def vaeda(
             np.save(vae_path_real, encoding[Y == 0, :])
             np.save(vae_path_sim, encoding[Y == 1, :])
 
-    #### PU ####
+    # PU ####
     if save_dir is not None:
         np.save(save_dir / "knn_feature_real.npy", knn_feature[Y == 0])
         np.save(save_dir / "knn_feature_sim.npy", knn_feature[Y == 1])
@@ -317,7 +332,9 @@ def vaeda(
     k = int(u.shape[0] / num_cells)
     k = max(k, 2)
 
-    hist = epoch_PU(u, p, k, N, max_eps_PU, seeds=seeds[8:], puLR=LR_PU, verbose=verbose)  # seeds 8-12
+    hist = epoch_PU(
+        u, p, k, N, max_eps_PU, seeds=seeds[8:], puLR=LR_PU, verbose=verbose
+    )  # seeds 8-12
 
     y = np.log(hist.history["loss"])
     x = np.arange(len(y))
@@ -331,8 +348,8 @@ def vaeda(
     knee = kneedle.knee
     # provide fallback value if there are too few objects to start with
     if knee is None:
-        knee = len(y) // 2  
-    
+        knee = len(y) // 2
+
     match knee:
         case knee if num < 500:
             knee = knee + 100
@@ -343,13 +360,15 @@ def vaeda(
         case _:
             knee = 250
 
-    preds, preds_on_p, *_ = PU(u, p, k, N, knee, seeds=seeds[8:], puLR=LR_PU, verbose=verbose)
+    preds, preds_on_p, *_ = PU(
+        u, p, k, N, knee, seeds=seeds[8:], puLR=LR_PU, verbose=verbose
+    )
 
     if save_dir is not None:
         np.save(save_dir / "scores.npy", preds)
         np.save(save_dir / "scores_on_sim.npy", preds_on_p)
 
-    #### CALLS ####
+    # CALLS ####
     maximum = np.max([np.max(preds), np.max(preds_on_p)])
     minimum = np.min([np.min(preds), np.min(preds_on_p)])
 

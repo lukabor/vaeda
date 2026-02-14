@@ -26,7 +26,9 @@ def fast_cluster(X, comp=20):
 
     n_clusters = int(X.shape[0] * 0.1)
 
-    kmeans = MiniBatchKMeans(n_clusters=n_clusters, random_state=0, batch_size=1024, max_iter=20).fit(pca_proj)
+    kmeans = MiniBatchKMeans(
+        n_clusters=n_clusters, random_state=0, batch_size=1024, max_iter=20
+    ).fit(pca_proj)
 
     mini_clust = kmeans.predict(pca_proj)
 
@@ -48,7 +50,7 @@ def fast_cluster(X, comp=20):
     clust = np.zeros(X.shape[0])
     for c in np.unique(clust_meta):
         meta_ind = np.where(clust_meta == c)
-        ind = np.in1d(mini_clust, meta_ind)
+        ind = np.isin(mini_clust, meta_ind)
 
         clust[ind] = c
 

@@ -4,6 +4,7 @@ from .mk_doublets import sim_inflate
 from .pu import PU, epoch_PU
 from .vae import define_clust_vae
 from .vaeda import vaeda
+
 __version__ = "0.1.0"
 __all__ = [
     "PU",
@@ -15,4 +16,3 @@ __all__ = [
     "sim_inflate",
     "vaeda",
 ]
-

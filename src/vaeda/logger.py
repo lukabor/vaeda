@@ -4,7 +4,9 @@ from sys import stderr
 from loguru import logger
 
 
-def init_logger(verbose: int, save_log: bool = False, msg_format: str | None = None) -> None:
+def init_logger(
+    verbose: int, save_log: bool = False, msg_format: str | None = None
+) -> None:
     logger.enable(__package__)
     timezone = datetime.datetime.now(datetime.UTC).astimezone().tzinfo
 
@@ -33,7 +35,12 @@ def init_logger(verbose: int, save_log: bool = False, msg_format: str | None = N
 
     config = {
         "handlers": [
-            {"sink": stderr, "format": msg_format, "level": log_level, "filter": __package__},
+            {
+                "sink": stderr,
+                "format": msg_format,
+                "level": log_level,
+                "filter": __package__,
+            },
         ]
     }
     logger.configure(**config)

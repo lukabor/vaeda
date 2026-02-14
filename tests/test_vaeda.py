@@ -7,7 +7,6 @@ Tests follow Given-When-Then structure:
 """
 
 import os
-import shutil
 import tarfile
 import tempfile
 
@@ -21,27 +20,27 @@ def pbmc3k_adata():
     """Download and prepare pbmc3k test dataset. This fixture follows documentation provided by vaeda."""
     original_dir = os.getcwd()
     temp_dir = tempfile.TemporaryDirectory()
-    
+
     try:
         os.chdir(temp_dir.name)
-        
+
         url = "http://cf.10xgenomics.com/samples/cell-exp/1.1.0/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz"
         response = requests.get(url, stream=True, timeout=60)
         response.raise_for_status()
-        
+
         with tarfile.open(fileobj=response.raw, mode="r|gz") as file:
             file.extractall(path=".")
-        
+
         adata = sc.read_10x_mtx(
             "./filtered_gene_bc_matrices/hg19/",
             var_names="gene_symbols",
             cache=False,
         )
         adata.var_names_make_unique()
-        
+
         os.chdir(original_dir)
         yield adata
-        
+
     finally:
         os.chdir(original_dir)
         temp_dir.cleanup()
@@ -95,6 +94,7 @@ class TestVaedaImport:
         # Then
         assert has_sim_inflate_function
 
+
 class TestVaedaOutput:
     """Test vaeda function output structure."""
 
@@ -106,6 +106,7 @@ class TestVaedaOutput:
         """
         # Given
         import anndata as ad
+
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
@@ -167,6 +168,7 @@ class TestVaedaOutput:
         # Then
         assert "vaeda_embedding" in result.obsm
 
+
 class TestVaedaScoreValidation:
     """Test vaeda score validity."""
 
@@ -216,7 +218,7 @@ class TestVaedaScoreValidation:
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-        valid_values = {0, 1, True, False, "singlet", "doublet"}
+        valid_values = {0, 1, "singlet", "doublet"}
 
         # When
         result = vaeda.vaeda(adata, verbose=0)
@@ -225,6 +227,7 @@ class TestVaedaScoreValidation:
 
         # Then
         assert unique_values.issubset(valid_values)
+
 
 class TestVaedaCluster:
     """Test vaeda clustering component."""
@@ -236,7 +239,6 @@ class TestVaedaCluster:
         Then it should return a label for each cell
         """
         # Given
-        import numpy as np
         from vaeda import cluster
 
         adata = pbmc3k_adata[:500, :].copy()
@@ -265,6 +267,7 @@ class TestVaedaCluster:
         """
         # Given
         import numpy as np
+
         from vaeda import cluster
 
         adata = pbmc3k_adata[:500, :].copy()
@@ -282,6 +285,7 @@ class TestVaedaCluster:
 
         # Then
         assert np.issubdtype(labels.dtype, np.integer)
+
 
 class TestVaedaSimInflate:
     """Test vaeda doublet simulation component."""
@@ -305,3 +309,47 @@ class TestVaedaSimInflate:
 
         # Then
         assert result is not None
+
+
+@pytest.mark.slow
+class TestVaedaFullDataset:
+    """Full dataset tests (marked as slow)."""
+
+    def test_vaeda_processes_full_pbmc3k_dataset(self, pbmc3k_adata):
+        """
+        Given the full pbmc3k dataset
+        When I run vaeda with default parameters
+        Then it should complete successfully with all expected outputs
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata.copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=1)
+
+        # Then
+        assert "vaeda_scores" in result.obs.columns
+        assert "vaeda_calls" in result.obs.columns
+        assert "vaeda_embedding" in result.obsm
+
+    def test_vaeda_embedding_has_correct_dimensions(self, pbmc3k_adata):
+        """
+        Given the full pbmc3k dataset
+        When I run vaeda with default encoding size
+        Then the embedding should have shape (n_cells, enc_sze)
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata.copy()
+        enc_sze = 5  # default encoding size
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0, enc_sze=enc_sze)
+        embedding = result.obsm["vaeda_embedding"]
+
+        # Then
+        assert embedding.shape[0] == adata.n_obs
+        assert embedding.shape[1] == enc_sze + 1  # encoding + knn_feature

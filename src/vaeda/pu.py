@@ -8,7 +8,20 @@ from sklearn.neighbors import NearestNeighbors
 from .classifier import define_classifier
 
 
-def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, stop_metric="ValAUC", verbose=0):
+def PU(
+    U,
+    P,
+    k,
+    N,
+    cls_eps,
+    seeds,
+    clss="NN",
+    puPat=5,
+    puLR=1e-3,
+    num_layers=1,
+    stop_metric="ValAUC",
+    verbose=0,
+):
     random_state = seeds[0]
     rkf = RepeatedKFold(n_splits=k, n_repeats=N, random_state=random_state)
 
@@ -26,10 +39,15 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
         train_task = progress.add_task(description="", total=k)
         for test, train in rkf.split(U):
             i += 1
-            progress.update(train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True)
+            progress.update(
+                train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True
+            )
 
             X = np.vstack([U[train, :], P])
-            Y = np.concatenate([np.zeros(shape=[len(train)]), np.ones(shape=[P.shape[0]])])
+            Y = np.concatenate([
+                np.zeros(shape=[len(train)]),
+                np.ones(shape=[P.shape[0]]),
+            ])
 
             x = U[test, :]
 
@@ -46,7 +64,9 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
 
                 auc = tfk.metrics.AUC(curve="PR", name="auc")
                 classifier.compile(
-                    optimizer=tfk.optimizers.Adam(learning_rate=puLR), loss="binary_crossentropy", metrics=[auc]
+                    optimizer=tfk.optimizers.Adam(learning_rate=puLR),
+                    loss="binary_crossentropy",
+                    metrics=[auc],
                 )
 
                 if (X.shape[0] * 0.1) >= 50:
@@ -59,7 +79,9 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
                     np.random.shuffle(ind)
 
                     tf.random.set_seed(seeds[3])
-                    hist = classifier.fit(x=X[ind, :], y=Y[ind], epochs=cls_eps, verbose=0)
+                    hist = classifier.fit(
+                        x=X[ind, :], y=Y[ind], epochs=cls_eps, verbose=0
+                    )
 
                 hists[i - 1, : len(hist.history["loss"])] = hist.history["loss"]
                 auc_hists[i - 1, : len(hist.history["auc"])] = hist.history["auc"]
@@ -75,10 +97,14 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
                 knn.fit(X, Y)
 
                 graph = knn.kneighbors_graph(x)
-                preds[test] = preds[test] + np.squeeze(np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors))
+                preds[test] = preds[test] + np.squeeze(
+                    np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
+                )
 
                 graph = knn.kneighbors_graph(P)
-                preds_on_P = preds_on_P + np.squeeze(np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors))
+                preds_on_P = preds_on_P + np.squeeze(
+                    np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
+                )
 
     preds = preds / ((i / k) * (k - 1))
     preds_on_P = preds_on_P / ((i / k) * (k - 1))
@@ -86,7 +112,19 @@ def PU(U, P, k, N, cls_eps, seeds, clss="NN", puPat=5, puLR=1e-3, num_layers=1, 
     return preds, preds_on_P, hists, val_hists, auc_hists, val_auc
 
 
-def epoch_PU(U, P, k, N, cls_eps, seeds, puPat=5, puLR=1e-3, num_layers=1, stop_metric="ValAUC", verbose=0):
+def epoch_PU(
+    U,
+    P,
+    k,
+    N,
+    cls_eps,
+    seeds,
+    puPat=5,
+    puLR=1e-3,
+    num_layers=1,
+    stop_metric="ValAUC",
+    verbose=0,
+):
     random_state = seeds[0]
     rkf = RepeatedKFold(n_splits=k, n_repeats=N, random_state=random_state)
 
@@ -95,7 +133,9 @@ def epoch_PU(U, P, k, N, cls_eps, seeds, puPat=5, puLR=1e-3, num_layers=1, stop_
         train_task = progress.add_task(description="", total=k)
         for _, train in rkf.split(U):
             i += 1
-            progress.update(train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True)
+            progress.update(
+                train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True
+            )
             X = np.vstack([U[train, :], P])
             Y = np.concatenate([np.zeros([len(train)]), np.ones([P.shape[0]])])
 
@@ -111,7 +151,9 @@ def epoch_PU(U, P, k, N, cls_eps, seeds, puPat=5, puLR=1e-3, num_layers=1, stop_
 
             auc = tfk.metrics.AUC(curve="PR", name="auc")
             classifier.compile(
-                optimizer=tfk.optimizers.Adam(learning_rate=puLR), loss="binary_crossentropy", metrics=[auc]
+                optimizer=tfk.optimizers.Adam(learning_rate=puLR),
+                loss="binary_crossentropy",
+                metrics=[auc],
             )
 
             tf.random.set_seed(seeds[3])
