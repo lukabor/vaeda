@@ -282,3 +282,26 @@ class TestVaedaCluster:
 
         # Then
         assert np.issubdtype(labels.dtype, np.integer)
+
+class TestVaedaSimInflate:
+    """Test vaeda doublet simulation component."""
+
+    def test_sim_inflate_returns_augmented_data(self, pbmc3k_adata):
+        """
+        Given a gene expression matrix
+        When I run sim_inflate to generate synthetic doublets
+        Then it should return augmented data
+        """
+        # Given
+        from vaeda import sim_inflate
+
+        adata = pbmc3k_adata[:500, :].copy()
+        x_mat = adata.X
+        if hasattr(x_mat, "toarray"):
+            x_mat = x_mat.toarray()
+
+        # When
+        result = sim_inflate(x_mat)
+
+        # Then
+        assert result is not None
