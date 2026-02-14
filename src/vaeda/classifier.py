@@ -30,6 +30,14 @@ class BinaryClassifier(nn.Module):
             raise ValueError(msg)
         layers.append(nn.Sigmoid())
         self.net = nn.Sequential(*layers)
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Use Glorot uniform (Xavier) to match Keras Dense defaults."""
+        for m in self.net:
+            if isinstance(m, nn.Linear):
+                nn.init.xavier_uniform_(m.weight)
+                nn.init.zeros_(m.bias)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.net(x).squeeze(-1)

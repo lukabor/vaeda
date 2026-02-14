@@ -21,27 +21,43 @@ def _train_one_epoch(
     optimiser: torch.optim.Optimizer,
     X: torch.Tensor,
     Y: torch.Tensor,
+    batch_size: int = 32,
 ) -> tuple[float, float]:
-    """Train a single epoch; return (loss, auc_approx)."""
+    """Train a single epoch with minibatches; return (loss, auc)."""
     model.train()
-    optimiser.zero_grad()
-    preds = model(X)
-    loss = F.binary_cross_entropy(preds, Y)
-    loss.backward()
-    optimiser.step()
+    device = X.device
+    n = X.shape[0]
+    perm = torch.randperm(n, device=device)
+    total_loss = 0.0
+    n_batches = 0
 
-    # Approximate PRAUC via average precision (matches tf AUC(curve="PR"))
+    for start in range(0, n, batch_size):
+        end = min(start + batch_size, n)
+        idx = perm[start:end]
+        x_batch = X[idx]
+        y_batch = Y[idx]
+
+        optimiser.zero_grad()
+        preds = model(x_batch)
+        loss = F.binary_cross_entropy(preds, y_batch)
+        loss.backward()
+        optimiser.step()
+        total_loss += loss.item()
+        n_batches += 1
+
+    # Compute epoch-level AUC on full data
+    model.eval()
     with torch.no_grad():
-        p = preds.detach().cpu().numpy()
-        t = Y.detach().cpu().numpy()
+        all_preds = model(X).cpu().numpy()
+        all_targets = Y.cpu().numpy()
         from sklearn.metrics import average_precision_score
 
         try:
-            auc_val = float(average_precision_score(t, p))
+            auc_val = float(average_precision_score(all_targets, all_preds))
         except ValueError:
             auc_val = 0.0
 
-    return float(loss.item()), auc_val
+    return total_loss / n_batches, auc_val
 
 
 def PU(

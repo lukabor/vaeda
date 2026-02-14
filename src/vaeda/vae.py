@@ -23,6 +23,13 @@ class Encoder(nn.Module):
         # Output mean and log-variance for the latent distribution
         self.fc_mu = nn.Linear(256, n_latent)
         self.fc_logvar = nn.Linear(256, n_latent)
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Use Glorot uniform (Xavier) to match Keras Dense defaults."""
+        for m in [self.fc1, self.fc_mu, self.fc_logvar]:
+            nn.init.xavier_uniform_(m.weight)
+            nn.init.zeros_(m.bias)
 
     def forward(
         self, x: torch.Tensor
@@ -52,6 +59,13 @@ class Decoder(nn.Module):
         # Output mean and log-variance for the reconstruction
         self.fc_mu = nn.Linear(256, n_output)
         self.fc_logvar = nn.Linear(256, n_output)
+        self._init_weights()
+
+    def _init_weights(self) -> None:
+        """Use Glorot uniform (Xavier) to match Keras Dense defaults."""
+        for m in [self.fc1, self.fc_mu, self.fc_logvar]:
+            nn.init.xavier_uniform_(m.weight)
+            nn.init.zeros_(m.bias)
 
     def forward(
         self, z: torch.Tensor
@@ -72,6 +86,8 @@ class ClustClassifier(nn.Module):
         super().__init__()
         self.bn = nn.BatchNorm1d(n_latent)
         self.fc = nn.Linear(n_latent, n_clusters)
+        nn.init.xavier_uniform_(self.fc.weight)
+        nn.init.zeros_(self.fc.bias)
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
         h = self.bn(z)
@@ -130,6 +146,12 @@ class ClustVAE(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute total loss.
 
+        Matches the TFP/Keras loss semantics:
+        - NLL: sum over features, mean over batch (Keras default)
+        - KL: sum over latent dims, mean over batch
+          (TFP KLDivergenceRegularizer behaviour)
+        - Cluster CE: mean over batch
+
         Parameters
         ----------
         x : input data
@@ -143,13 +165,19 @@ class ClustVAE(nn.Module):
         # Clamp logvar to prevent numerical instability
         recon_logvar = recon_logvar.clamp(-20, 20)
 
-        # Reconstruction NLL (Gaussian)
+        # Reconstruction NLL (Gaussian): sum over features, mean over
+        # batch — matches TFP's nll = -reduce_sum(log_prob, axis=-1)
+        # averaged by Keras over the batch.
         recon_dist = Independent(
             Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1
         )
+        # log_prob already sums over features (Independent, dim=1)
         nll = -recon_dist.log_prob(x).mean()
 
-        # KL divergence  D_KL( q(z|x) || p(z) )
+        # KL divergence: sum over latent dims, mean over batch
+        # This matches TFP KLDivergenceRegularizer which computes
+        # per-sample KL and adds it to the layer's activity
+        # regularisation losses (then Keras averages over batch).
         kl = -0.5 * torch.sum(
             1 + logvar - mu.pow(2) - logvar.exp(), dim=-1
         ).mean()

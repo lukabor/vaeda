@@ -329,25 +329,41 @@ def vaeda(
         # Early stopping state
         best_val_loss = float("inf")
         patience_counter = 0
+        batch_size = 32  # Keras default
 
         for epoch in range(max_eps_vae):
-            # Train step
+            # Train step (minibatch, matching Keras default batch_size=32)
             vae.train()
-            optimiser.zero_grad()
-            recon_mu, recon_logvar, clust_pred, _, vae_mu, logvar = vae(
-                X_train_t
-            )
-            train_loss, _, _ = vae.loss(
-                X_train_t,
-                recon_mu,
-                recon_logvar,
-                vae_mu,
-                logvar,
-                clust_pred,
-                clust_train_t,
-            )
-            train_loss.backward()
-            optimiser.step()
+            n_train = X_train_t.shape[0]
+            # Shuffle training data each epoch
+            perm = torch.randperm(n_train, device=device)
+            epoch_loss = 0.0
+            n_batches = 0
+
+            for start in range(0, n_train, batch_size):
+                end = min(start + batch_size, n_train)
+                idx = perm[start:end]
+                x_batch = X_train_t[idx]
+                c_batch = clust_train_t[idx]
+
+                optimiser.zero_grad()
+                recon_mu, recon_logvar, clust_pred, _, enc_mu, enc_logvar = vae(
+                    x_batch
+                )
+                batch_loss, _, _ = vae.loss(
+                    x_batch,
+                    recon_mu,
+                    recon_logvar,
+                    enc_mu,
+                    enc_logvar,
+                    clust_pred,
+                    c_batch,
+                )
+                batch_loss.backward()
+                optimiser.step()
+                epoch_loss += batch_loss.item()
+                n_batches += 1
+
             scheduler.step()
 
             # Validation step
@@ -358,15 +374,15 @@ def vaeda(
                     v_recon_logvar,
                     v_clust_pred,
                     _,
-                    v_vae_mu,
-                    v_logvar,
+                    v_enc_mu,
+                    v_enc_logvar,
                 ) = vae(X_test_t)
                 val_loss, _, _ = vae.loss(
                     X_test_t,
                     v_recon_mu,
                     v_recon_logvar,
-                    v_vae_mu,
-                    v_logvar,
+                    v_enc_mu,
+                    v_enc_logvar,
                     v_clust_pred,
                     clust_test_t,
                 )
