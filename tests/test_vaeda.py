@@ -225,3 +225,60 @@ class TestVaedaScoreValidation:
 
         # Then
         assert unique_values.issubset(valid_values)
+
+class TestVaedaCluster:
+    """Test vaeda clustering component."""
+
+    def test_cluster_returns_labels_for_each_cell(self, pbmc3k_adata):
+        """
+        Given preprocessed gene expression data
+        When I run the cluster function
+        Then it should return a label for each cell
+        """
+        # Given
+        import numpy as np
+        from vaeda import cluster
+
+        adata = pbmc3k_adata[:500, :].copy()
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+        adata_hvg = adata[:, adata.var.highly_variable].copy()
+
+        x_mat = adata_hvg.X
+        if hasattr(x_mat, "toarray"):
+            x_mat = x_mat.toarray()
+
+        n_cells = adata.n_obs
+
+        # When
+        labels = cluster(x_mat)
+
+        # Then
+        assert len(labels) == n_cells
+
+    def test_cluster_returns_integer_labels(self, pbmc3k_adata):
+        """
+        Given preprocessed gene expression data
+        When I run the cluster function
+        Then labels should be integers
+        """
+        # Given
+        import numpy as np
+        from vaeda import cluster
+
+        adata = pbmc3k_adata[:500, :].copy()
+        sc.pp.normalize_total(adata, target_sum=1e4)
+        sc.pp.log1p(adata)
+        sc.pp.highly_variable_genes(adata, n_top_genes=2000)
+        adata_hvg = adata[:, adata.var.highly_variable].copy()
+
+        x_mat = adata_hvg.X
+        if hasattr(x_mat, "toarray"):
+            x_mat = x_mat.toarray()
+
+        # When
+        labels = cluster(x_mat)
+
+        # Then
+        assert np.issubdtype(labels.dtype, np.integer)
