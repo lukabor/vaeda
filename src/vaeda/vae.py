@@ -104,28 +104,44 @@ class ClustVAE(nn.Module):
 
     def forward(
         self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Return (recon_mu, recon_logvar, clust_logits, z)."""
+    ) -> tuple[
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+        torch.Tensor,
+    ]:
+        """Return (recon_mu, recon_logvar, clust_pred, z, mu, logvar)."""
         z, mu, logvar = self.encoder(x)
         recon_mu, recon_logvar = self.decoder(z)
         clust_pred = self.clust_classifier(z)
-        return recon_mu, recon_logvar, clust_pred, z
+        return recon_mu, recon_logvar, clust_pred, z, mu, logvar
 
     def loss(
         self,
         x: torch.Tensor,
         recon_mu: torch.Tensor,
         recon_logvar: torch.Tensor,
+        mu: torch.Tensor,
+        logvar: torch.Tensor,
         clust_pred: torch.Tensor,
         clust_target: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Compute total loss.
 
-        Returns (total_loss, recon_loss, kl_loss) per-batch-element,
-        averaged over the batch.
+        Parameters
+        ----------
+        x : input data
+        recon_mu, recon_logvar : decoder outputs
+        mu, logvar : encoder outputs (passed through, not recomputed)
+        clust_pred : cluster classifier output
+        clust_target : one-hot cluster labels
+
+        Returns (total_loss, recon_loss, kl_loss) averaged over batch.
         """
-        # Get encoder params for KL (run encoder again for mu/logvar)
-        _, mu, logvar = self.encoder(x)
+        # Clamp logvar to prevent numerical instability
+        recon_logvar = recon_logvar.clamp(-20, 20)
 
         # Reconstruction NLL (Gaussian)
         recon_dist = Independent(
@@ -161,15 +177,20 @@ class SimpleVAE(nn.Module):
 
     def forward(
         self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         z, mu, logvar = self.encoder(x)
         recon_mu, recon_logvar = self.decoder(z)
-        return recon_mu, recon_logvar, z
+        return recon_mu, recon_logvar, z, mu, logvar
 
     def loss(
-        self, x: torch.Tensor, recon_mu: torch.Tensor, recon_logvar: torch.Tensor
+        self,
+        x: torch.Tensor,
+        recon_mu: torch.Tensor,
+        recon_logvar: torch.Tensor,
+        mu: torch.Tensor,
+        logvar: torch.Tensor,
     ) -> torch.Tensor:
-        _, mu, logvar = self.encoder(x)
+        recon_logvar = recon_logvar.clamp(-20, 20)
         recon_dist = Independent(
             Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1
         )

@@ -334,11 +334,15 @@ def vaeda(
             # Train step
             vae.train()
             optimiser.zero_grad()
-            recon_mu, recon_logvar, clust_pred, _ = vae(X_train_t)
+            recon_mu, recon_logvar, clust_pred, _, vae_mu, logvar = vae(
+                X_train_t
+            )
             train_loss, _, _ = vae.loss(
                 X_train_t,
                 recon_mu,
                 recon_logvar,
+                vae_mu,
+                logvar,
                 clust_pred,
                 clust_train_t,
             )
@@ -349,13 +353,20 @@ def vaeda(
             # Validation step
             vae.eval()
             with torch.no_grad():
-                v_recon_mu, v_recon_logvar, v_clust_pred, _ = vae(
-                    X_test_t
-                )
+                (
+                    v_recon_mu,
+                    v_recon_logvar,
+                    v_clust_pred,
+                    _,
+                    v_vae_mu,
+                    v_logvar,
+                ) = vae(X_test_t)
                 val_loss, _, _ = vae.loss(
                     X_test_t,
                     v_recon_mu,
                     v_recon_logvar,
+                    v_vae_mu,
+                    v_logvar,
                     v_clust_pred,
                     clust_test_t,
                 )
@@ -382,7 +393,7 @@ def vaeda(
         with torch.no_grad():
             torch.manual_seed(seeds[7])
             z, _, _ = vae.encoder(x_mat_t)
-            encoding = z.cpu().numpy()
+            encoding = z.detach().cpu().numpy()
 
         if save_dir is not None:
             np.save(vae_path_real, encoding[Y == 0, :])
