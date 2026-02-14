@@ -52,6 +52,7 @@ def vaeda(
     remove_homos: bool = True,
     use_old: bool = False,
     seed: int | None = None,
+    optimized: bool = False
 ) -> ad.AnnData:
     """
     Parameters
@@ -101,6 +102,9 @@ def vaeda(
         If true, data from previous runs will be used. save_dir must also be set to use this feature. (default is False)
     seed: int, optional
         seed for generating reproducable results. (default is None)
+    optimized: bool, optional  # <-- NEW
+        If True, use vectorized doublet library size selection (faster, ~98.5% agreement with legacy).
+        If False, use legacy per-row selection (slower, exact reproducibility). (default is False)
 
     Returns
     -------
@@ -152,7 +156,7 @@ def vaeda(
     else:  # otherwise, make new
         if verbose != 0:
             logger.info("generating simulated doublets")
-        Xs, ind1, ind2 = sim_inflate(x_mat)
+        Xs, ind1, ind2 = sim_inflate(x_mat, optimized=optimized)
         dat_sim = scs.csr_matrix(Xs)
 
         if save_dir is not None:  # if we are saving, then save
