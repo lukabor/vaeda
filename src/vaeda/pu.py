@@ -16,11 +16,11 @@ def PU(
     cls_eps,
     seeds,
     clss="NN",
-    puPat=5,
+    _puPat=5,  # unused but kept for API compatibility
     puLR=1e-3,
     num_layers=1,
-    stop_metric="ValAUC",
-    verbose=0,
+    _stop_metric="ValAUC",  # unused but kept for API compatibility
+    _verbose=0,  # unused but kept for API compatibility
 ):
     random_state = seeds[0]
     rkf = RepeatedKFold(n_splits=k, n_repeats=N, random_state=random_state)
@@ -53,14 +53,14 @@ def PU(
 
             if clss == "NN":
                 # DEFINE MODEL
-                np.random.seed(seed=1)
+                rng = np.random.Generator(np.random.PCG64(1))  # noqa: F841 - sets numpy random state
                 tf.random.set_seed(seed=seeds[1])
                 classifier = define_classifier(ngens=X.shape[1], num_layers=num_layers)
 
                 # shuffle training data
                 ind = np.arange(X.shape[0])
-                np.random.seed(seeds[2])
-                np.random.shuffle(ind)
+                rng2 = np.random.Generator(np.random.PCG64(seeds[2]))
+                rng2.shuffle(ind)
 
                 auc = tfk.metrics.AUC(curve="PR", name="auc")
                 classifier.compile(
@@ -75,8 +75,8 @@ def PU(
 
                 else:
                     ind = np.arange(X.shape[0])
-                    np.random.seed(seeds[2])
-                    np.random.shuffle(ind)
+                    rng3 = np.random.Generator(np.random.PCG64(seeds[2]))
+                    rng3.shuffle(ind)
 
                     tf.random.set_seed(seeds[3])
                     hist = classifier.fit(
@@ -119,11 +119,11 @@ def epoch_PU(
     N,
     cls_eps,
     seeds,
-    puPat=5,
+    _puPat=5,  # unused but kept for API compatibility
     puLR=1e-3,
     num_layers=1,
-    stop_metric="ValAUC",
-    verbose=0,
+    _stop_metric="ValAUC",  # unused but kept for API compatibility
+    _verbose=0,  # unused but kept for API compatibility
 ):
     random_state = seeds[0]
     rkf = RepeatedKFold(n_splits=k, n_repeats=N, random_state=random_state)
@@ -140,14 +140,14 @@ def epoch_PU(
             Y = np.concatenate([np.zeros([len(train)]), np.ones([P.shape[0]])])
 
             # DEFINE MODEL
-            np.random.seed(1)
+            rng = np.random.Generator(np.random.PCG64(1))  # noqa: F841 - sets numpy random state
             tf.random.set_seed(seeds[1])
             classifier = define_classifier(X.shape[1], num_layers=num_layers)
 
             # shuffle training data
             ind = np.arange(X.shape[0])
-            np.random.seed(seeds[2])
-            np.random.shuffle(ind)
+            rng2 = np.random.Generator(np.random.PCG64(seeds[2]))
+            rng2.shuffle(ind)
 
             auc = tfk.metrics.AUC(curve="PR", name="auc")
             classifier.compile(

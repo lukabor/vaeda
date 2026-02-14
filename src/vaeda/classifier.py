@@ -3,7 +3,7 @@ from loguru import logger
 from tf_keras import layers as tfkl
 
 
-def define_classifier(ngens, seed: int = 1, num_layers: int = 1):
+def define_classifier(ngens: int, num_layers: int = 1) -> tfk.Model:
     match num_layers:
         case 1:
             classifier = tfk.Sequential([

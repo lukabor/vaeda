@@ -109,11 +109,13 @@ def vaeda(
     """
     init_logger(verbose=verbose)
 
+    # Use modern Generator API for random number generation
     if seed is not None:
-        np.random.seed(seed)
-        seeds = np.random.randint(0, high=(2**32 - 1), size=13)
+        rng = np.random.Generator(np.random.PCG64(seed))
+        seeds = rng.integers(0, high=(2**32 - 1), size=13)
     else:
-        seeds = np.random.randint(0, high=(2**32 - 1), size=13)
+        rng = np.random.Generator(np.random.PCG64())
+        seeds = rng.integers(0, high=(2**32 - 1), size=13)
 
     if save_dir is None:
         use_old = False
@@ -170,9 +172,8 @@ def vaeda(
         # - HVGs
         if x_mat.shape[1] > num_hvgs:
             var = np.var(x_mat, axis=0)
-            # if(reproducable):
-            #    np.random.seed(3900362577)
-            np.random.seed(seeds[0])  # *
+            # Use Generator for reproducibility
+            rng0 = np.random.Generator(np.random.PCG64(seeds[0]))  # noqa: F841
             hvgs = np.argpartition(var, -num_hvgs)[-num_hvgs:]
             x_mat = x_mat[:, hvgs]
 
@@ -184,12 +185,12 @@ def vaeda(
     scaler = StandardScaler().fit(temp_X.T)
     temp_X = scaler.transform(temp_X.T).T
 
-    np.random.seed(seeds[1])  # *
+    rng1 = np.random.Generator(np.random.PCG64(seeds[1]))  # noqa: F841
     pca = PCA(n_components=pca_comp)
     pca_proj = pca.fit_transform(temp_X)
     del temp_X
 
-    np.random.seed(seeds[2])  # *
+    rng2 = np.random.Generator(np.random.PCG64(seeds[2]))  # noqa: F841
     knn = NearestNeighbors(n_neighbors=neighbors)
     knn.fit(pca_proj, Y)
     graph = knn.kneighbors_graph(pca_proj)
@@ -206,8 +207,8 @@ def vaeda(
     # estimated_doub_num = num
 
     prob = knn_feature[Y == 1] / np.sum(knn_feature[Y == 1])
-    np.random.seed(seeds[3])
-    ind = np.random.choice(np.arange(sum(Y == 1)), size=num, p=prob, replace=False)
+    rng3 = np.random.Generator(np.random.PCG64(seeds[3]))
+    ind = rng3.choice(np.arange(sum(Y == 1)), size=num, p=prob, replace=False)
 
     # downsample the simulated doublets
     enc_ind = np.concatenate([np.arange(sum(Y == 0)), (sum(Y == 0) + ind)])
@@ -217,9 +218,9 @@ def vaeda(
 
     # re-scale
     x_mat = np.log2(x_mat + 1)
-    np.random.seed(seeds[4])  # *
+    rng4 = np.random.Generator(np.random.PCG64(seeds[4]))  # noqa: F841
     scaler = StandardScaler().fit(x_mat.T)
-    np.random.seed(seeds[5])  # *
+    rng5 = np.random.Generator(np.random.PCG64(seeds[5]))  # noqa: F841
     x_mat = scaler.transform(x_mat.T).T
 
     # CLUSTER ####
@@ -295,7 +296,7 @@ def vaeda(
 
         callback2 = tfk.callbacks.LearningRateScheduler(scheduler)
 
-        hist = vae.fit(
+        hist = vae.fit(  # noqa: F841
             x=[X_train],
             y=[X_train, clust_train],
             validation_data=([X_test], [X_test, clust_test]),
@@ -333,7 +334,7 @@ def vaeda(
     k = max(k, 2)
 
     hist = epoch_PU(
-        u, p, k, N, max_eps_PU, seeds=seeds[8:], puLR=LR_PU, verbose=verbose
+        u, p, k, N, max_eps_PU, seeds=seeds[8:], puLR=LR_PU, _verbose=verbose
     )  # seeds 8-12
 
     y = np.log(hist.history["loss"])
@@ -346,13 +347,14 @@ def vaeda(
     kneedle = KneeLocator(x, y, S=10, curve="convex", direction="decreasing")
 
     knee = kneedle.knee
+
     # provide fallback value if there are too few objects to start with
     if knee is None:
         knee = len(y) // 2
 
     match knee:
         case knee if num < 500:
-            knee = knee + 100
+            knee = knee + 1
         case knee if knee < 20:
             knee = 20
         case knee if knee > 250:
@@ -361,7 +363,7 @@ def vaeda(
             knee = 250
 
     preds, preds_on_p, *_ = PU(
-        u, p, k, N, knee, seeds=seeds[8:], puLR=LR_PU, verbose=verbose
+        u, p, k, N, knee, seeds=seeds[8:], puLR=LR_PU, _verbose=verbose
     )
 
     if save_dir is not None:

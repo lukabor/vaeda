@@ -9,6 +9,7 @@ Tests follow Given-When-Then structure:
 import os
 import tarfile
 import tempfile
+from pathlib import Path
 
 import pytest
 import requests
@@ -18,7 +19,7 @@ import scanpy as sc
 @pytest.fixture(scope="module")
 def pbmc3k_adata():
     """Download and prepare pbmc3k test dataset. This fixture follows documentation provided by vaeda."""
-    original_dir = os.getcwd()
+    original_dir = Path.cwd()
     temp_dir = tempfile.TemporaryDirectory()
 
     try:

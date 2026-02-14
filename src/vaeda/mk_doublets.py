@@ -8,7 +8,7 @@ def sim_inflate(
     X: npt.NDArray[np.float32],
     frac_doublets: float | None = None,
     seeds: Sequence[int] = (1234, 15232, 3060309),
-) -> tuple[npt.NDArray[np.float64], list[int], list[int]]:
+) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.intp], npt.NDArray[np.intp]]:
     if frac_doublets is None:
         num_doublets = 1 * X.shape[0]
     else:
@@ -17,13 +17,16 @@ def sim_inflate(
     ind1 = np.arange(X.shape[0])
     ind2 = np.arange(X.shape[0])
 
-    np.random.seed(seed=seeds[0])
-    np.random.shuffle(x=ind1)
-    np.random.seed(seed=seeds[1])
-    np.random.shuffle(x=ind2)
+    # Use modern Generator API instead of legacy np.random.seed/shuffle
+    rng1 = np.random.Generator(np.random.PCG64(seeds[0]))
+    rng1.shuffle(ind1)
+    rng2 = np.random.Generator(np.random.PCG64(seeds[1]))
+    rng2.shuffle(ind2)
 
-    X1 = np.copy(X)[ind1, :]
-    X2 = np.copy(X)[ind2, :]
+    X1 = X[ind1, :]
+    X2 = X[ind2, :]
+#    X1 = np.copy(X)[ind1, :]
+#   X2 = np.copy(X)[ind2, :]
 
     res = X1 + X2
 
