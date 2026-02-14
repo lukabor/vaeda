@@ -9,7 +9,11 @@ def sim_inflate(
     frac_doublets: float | None = None,
     seeds: Sequence[int] = (1234, 15232, 3060309),
     optimized: bool = False,
-) -> tuple[npt.NDArray[np.float64], npt.NDArray[np.intp], npt.NDArray[np.intp]]:
+) -> tuple[
+    npt.NDArray[np.float64],
+    npt.NDArray[np.intp],
+    npt.NDArray[np.intp],
+]:
     """
     Generate simulated doublets by combining pairs of cells.
 
@@ -18,12 +22,15 @@ def sim_inflate(
     X : ndarray
         Expression matrix (cells x genes)
     frac_doublets : float, optional
-        Fraction of doublets to generate. If None, generates n_cells doublets.
+        Fraction of doublets to generate. If None, generates n_cells
+        doublets.
     seeds : Sequence[int]
         Random seeds for reproducibility
     optimized : bool, default=False
-        If True, use vectorized library size selection (faster, ~98.5% agreement with legacy).
-        If False, use legacy per-row selection (slower, exact reproducibility).
+        If True, use vectorized library size selection (faster, ~98.5%
+        agreement with legacy).
+        If False, use legacy per-row selection (slower, exact
+        reproducibility).
 
     Returns
     -------
@@ -38,13 +45,11 @@ def sim_inflate(
     ind1 = np.arange(X.shape[0])
     ind2 = np.arange(X.shape[0])
 
-    # Use modern Generator API instead of legacy np.random.seed/shuffle
     rng1 = np.random.Generator(np.random.PCG64(seeds[0]))
     rng1.shuffle(ind1)
     rng2 = np.random.Generator(np.random.PCG64(seeds[1]))
     rng2.shuffle(ind2)
 
-    # Use indexing directly instead of np.copy(X)[ind, :]
     X1 = X[ind1, :]
     X2 = X[ind2, :]
 
@@ -55,7 +60,6 @@ def sim_inflate(
 
     lib_sze = np.maximum.reduce([lib1, lib2])
 
-    # Select inflated library sizes
     if optimized:
         inflated_sze = _vectorized_choice(lib_sze, seeds[2])
     else:
@@ -68,12 +72,16 @@ def sim_inflate(
     return res[:num_doublets, :], ind1[:num_doublets], ind2[:num_doublets]
 
 
-def _legacy_choice(lib_sze: npt.NDArray[np.float64], seed: int) -> npt.NDArray[np.float64]:
+def _legacy_choice(
+    lib_sze: npt.NDArray[np.float64], seed: int
+) -> npt.NDArray[np.float64]:
     """
-    Legacy per-row random choice (exact reproducibility with original code).
+    Legacy per-row random choice (exact reproducibility with original
+    code).
 
     For each row, creates a fresh generator with the same seed and picks
-    from values >= threshold. Slower but matches original behavior exactly.
+    from values >= threshold. Slower but matches original behavior
+    exactly.
     """
     n = len(lib_sze)
     inflated_sze = np.empty(n)
@@ -85,34 +93,31 @@ def _legacy_choice(lib_sze: npt.NDArray[np.float64], seed: int) -> npt.NDArray[n
     return inflated_sze
 
 
-def _vectorized_choice(lib_sze: npt.NDArray[np.float64], seed: int) -> npt.NDArray[np.float64]:
+def _vectorized_choice(
+    lib_sze: npt.NDArray[np.float64], seed: int
+) -> npt.NDArray[np.float64]:
     """
     Vectorized random choice (faster, scientifically equivalent).
 
     Uses a single generator and precomputed sorted array for O(n log n)
-    performance instead of O(n²). Results differ from legacy but maintain
-    the same statistical properties (random selection from valid candidates).
+    performance instead of O(n^2). Results differ from legacy but
+    maintain the same statistical properties (random selection from
+    valid candidates).
     """
     n = len(lib_sze)
 
-    # Sort lib_sze to efficiently find valid candidates
     sorted_indices = np.argsort(lib_sze)
     sorted_lib = lib_sze[sorted_indices]
 
-    # For each row, find how many values are >= its threshold
     ranks = np.empty(n, dtype=np.intp)
     ranks[sorted_indices] = np.arange(n)
-    num_valid = n - ranks  # num_valid[i] = count of lib_sze >= lib_sze[i]
+    num_valid = n - ranks
 
-    # Single generator for all rows
     rng = np.random.Generator(np.random.PCG64(seed))
 
-    # Generate random offsets for each row (0 to num_valid-1)
-    # Use uniform random and scale by num_valid
     random_floats = rng.random(n)
     chosen_offsets = (random_floats * num_valid).astype(np.intp)
 
-    # The chosen value is at position (rank + chosen_offset) in sorted array
     chosen_positions = ranks + chosen_offsets
     inflated_sze = sorted_lib[chosen_positions]
 

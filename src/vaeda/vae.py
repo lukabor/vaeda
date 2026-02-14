@@ -1,114 +1,224 @@
-import tensorflow as tf
-import tf_keras as tfk
-import tf_keras.layers as tfkl
-from tensorflow_probability import distributions as tfd
-from tensorflow_probability import layers as tfpl
+"""VAE model definitions using PyTorch.
+
+Replaces the TensorFlow/TensorFlow Probability implementation from v0.1.x
+with native PyTorch modules and torch.distributions.
+"""
+
+from __future__ import annotations
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.distributions import Independent, Normal
 
 
-def define_clust_vae(enc_sze, ngens, num_clust, LR=1e-3, clust_weight=10000):
-    prior = tfd.Independent(
-        tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1
-    )
+class Encoder(nn.Module):
+    """Probabilistic encoder that maps input to a latent distribution."""
 
-    encoder = tfk.Sequential(
-        [
-            tfkl.InputLayer(input_shape=[ngens]),
-            tfkl.Dense(256, activation="relu"),
-            tfkl.BatchNormalization(),
-            tfkl.Dropout(rate=0.3),
-            tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-            tfpl.IndependentNormal(
-                enc_sze, activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
-            ),
-        ],
-        name="encoder",
-    )
+    def __init__(self, n_input: int, n_latent: int) -> None:
+        super().__init__()
+        self.fc1 = nn.Linear(n_input, 256)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.dropout1 = nn.Dropout(0.3)
+        # Output mean and log-variance for the latent distribution
+        self.fc_mu = nn.Linear(256, n_latent)
+        self.fc_logvar = nn.Linear(256, n_latent)
 
-    decoder = tfk.Sequential(
-        [
-            tfkl.InputLayer(input_shape=[enc_sze]),
-            tfkl.Dense(256, activation="relu"),
-            tfkl.BatchNormalization(),
-            tfkl.Dropout(rate=0.3),
-            tfkl.Dense(tfpl.IndependentNormal.params_size(ngens), activation=None),
-            tfpl.IndependentNormal(ngens),
-        ],
-        name="decoder",
-    )
-
-    clust_classifier = tfk.Sequential(
-        [
-            tfkl.InputLayer(input_shape=[enc_sze]),
-            tfkl.BatchNormalization(),
-            tfkl.Dense(num_clust, activation="sigmoid"),
-        ],
-        name="clust_classifier",
-    )
-
-    IPT = tfk.Input(shape=ngens)
-    z = encoder(IPT)
-    OPT1 = decoder(z)
-    OPT2 = clust_classifier(z)
-
-    vae = tfk.Model(inputs=[IPT], outputs=[OPT1, OPT2])
-
-    def nll(x, rv_x):
-        rec = rv_x.log_prob(x)
-        return -tf.math.reduce_sum(rec, axis=-1)
-
-    vae.compile(
-        optimizer=tfk.optimizers.Adamax(learning_rate=LR),  # Adam, 1e-3
-        loss=[nll, "categorical_crossentropy"],
-        loss_weights=[1, clust_weight],
-    )
-
-    return vae
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return (z_sample, mu, logvar)."""
+        h = F.relu(self.fc1(x))
+        h = self.bn1(h)
+        h = self.dropout1(h)
+        mu = self.fc_mu(h)
+        logvar = self.fc_logvar(h)
+        # Reparameterisation trick
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        z = mu + eps * std
+        return z, mu, logvar
 
 
-def define_vae(enc_sze, ngens):
-    prior = tfd.Independent(
-        tfd.Normal(loc=tf.zeros(enc_sze), scale=1), reinterpreted_batch_ndims=1
-    )
+class Decoder(nn.Module):
+    """Probabilistic decoder that maps latent samples to a
+    reconstruction distribution."""
 
-    encoder = tfk.Sequential(
-        [
-            tfkl.InputLayer(input_shape=[ngens]),
-            tfkl.Dense(256, activation="relu"),
-            tfkl.BatchNormalization(),
-            tfkl.Dropout(rate=0.3),
-            tfkl.Dense(tfpl.IndependentNormal.params_size(enc_sze), activation=None),
-            tfpl.IndependentNormal(
-                enc_sze, activity_regularizer=tfpl.KLDivergenceRegularizer(prior)
-            ),
-        ],
-        name="encoder",
-    )
+    def __init__(self, n_latent: int, n_output: int) -> None:
+        super().__init__()
+        self.fc1 = nn.Linear(n_latent, 256)
+        self.bn1 = nn.BatchNorm1d(256)
+        self.dropout1 = nn.Dropout(0.3)
+        # Output mean and log-variance for the reconstruction
+        self.fc_mu = nn.Linear(256, n_output)
+        self.fc_logvar = nn.Linear(256, n_output)
 
-    decoder = tfk.Sequential(
-        [
-            tfkl.InputLayer(input_shape=[enc_sze]),
-            tfkl.Dense(256, activation="relu"),
-            tfkl.BatchNormalization(),
-            tfkl.Dropout(rate=0.3),
-            tfkl.Dense(tfpl.IndependentNormal.params_size(ngens), activation=None),
-            tfpl.IndependentNormal(ngens),
-        ],
-        name="decoder",
-    )
+    def forward(
+        self, z: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Return (recon_mu, recon_logvar)."""
+        h = F.relu(self.fc1(z))
+        h = self.bn1(h)
+        h = self.dropout1(h)
+        recon_mu = self.fc_mu(h)
+        recon_logvar = self.fc_logvar(h)
+        return recon_mu, recon_logvar
 
-    IPT = tfk.Input(shape=ngens)
-    z = encoder(IPT)
-    OPT1 = decoder(z)
 
-    vae = tfk.Model(inputs=[IPT], outputs=[OPT1])
+class ClustClassifier(nn.Module):
+    """Cluster classifier head on the latent space."""
 
-    def nll(x, rv_x):
-        rec = rv_x.log_prob(x)
-        return -tf.math.reduce_sum(rec, axis=-1)
+    def __init__(self, n_latent: int, n_clusters: int) -> None:
+        super().__init__()
+        self.bn = nn.BatchNorm1d(n_latent)
+        self.fc = nn.Linear(n_latent, n_clusters)
 
-    vae.compile(
-        optimizer=tfk.optimizers.Adamax(learning_rate=1e-3),  # Adam
-        loss=nll,
-    )
+    def forward(self, z: torch.Tensor) -> torch.Tensor:
+        h = self.bn(z)
+        return torch.sigmoid(self.fc(h))
 
-    return vae
+
+class ClustVAE(nn.Module):
+    """VAE with an auxiliary cluster-classification head.
+
+    This is the PyTorch equivalent of ``define_clust_vae`` from v0.1.x.
+    The loss consists of:
+      1. Negative log-likelihood of the reconstruction (Gaussian).
+      2. KL divergence from the latent posterior to a unit Gaussian prior.
+      3. Categorical cross-entropy on cluster labels (weighted by
+         ``clust_weight``).
+    """
+
+    def __init__(
+        self,
+        n_input: int,
+        n_latent: int,
+        n_clusters: int,
+        clust_weight: float = 10000.0,
+    ) -> None:
+        super().__init__()
+        self.encoder = Encoder(n_input, n_latent)
+        self.decoder = Decoder(n_latent, n_input)
+        self.clust_classifier = ClustClassifier(n_latent, n_clusters)
+        self.clust_weight = clust_weight
+
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Return (recon_mu, recon_logvar, clust_logits, z)."""
+        z, mu, logvar = self.encoder(x)
+        recon_mu, recon_logvar = self.decoder(z)
+        clust_pred = self.clust_classifier(z)
+        return recon_mu, recon_logvar, clust_pred, z
+
+    def loss(
+        self,
+        x: torch.Tensor,
+        recon_mu: torch.Tensor,
+        recon_logvar: torch.Tensor,
+        clust_pred: torch.Tensor,
+        clust_target: torch.Tensor,
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Compute total loss.
+
+        Returns (total_loss, recon_loss, kl_loss) per-batch-element,
+        averaged over the batch.
+        """
+        # Get encoder params for KL (run encoder again for mu/logvar)
+        _, mu, logvar = self.encoder(x)
+
+        # Reconstruction NLL (Gaussian)
+        recon_dist = Independent(
+            Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1
+        )
+        nll = -recon_dist.log_prob(x).mean()
+
+        # KL divergence  D_KL( q(z|x) || p(z) )
+        kl = -0.5 * torch.sum(
+            1 + logvar - mu.pow(2) - logvar.exp(), dim=-1
+        ).mean()
+
+        # Cluster classification loss (categorical cross-entropy)
+        clust_loss = F.binary_cross_entropy(
+            clust_pred, clust_target, reduction="mean"
+        )
+
+        total = nll + kl + self.clust_weight * clust_loss
+        return total, nll, kl
+
+
+class SimpleVAE(nn.Module):
+    """VAE without the cluster head (used by ``define_vae``).
+
+    Kept for API compatibility but currently unused in the main
+    pipeline.
+    """
+
+    def __init__(self, n_input: int, n_latent: int) -> None:
+        super().__init__()
+        self.encoder = Encoder(n_input, n_latent)
+        self.decoder = Decoder(n_latent, n_input)
+
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        z, mu, logvar = self.encoder(x)
+        recon_mu, recon_logvar = self.decoder(z)
+        return recon_mu, recon_logvar, z
+
+    def loss(
+        self, x: torch.Tensor, recon_mu: torch.Tensor, recon_logvar: torch.Tensor
+    ) -> torch.Tensor:
+        _, mu, logvar = self.encoder(x)
+        recon_dist = Independent(
+            Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1
+        )
+        nll = -recon_dist.log_prob(x).mean()
+        kl = -0.5 * torch.sum(
+            1 + logvar - mu.pow(2) - logvar.exp(), dim=-1
+        ).mean()
+        return nll + kl
+
+
+# ---------------------------------------------------------------------------
+# Factory functions (preserve the v0.1.x public API names)
+# ---------------------------------------------------------------------------
+
+
+def define_clust_vae(
+    enc_sze: int,
+    ngens: int,
+    num_clust: int,
+    LR: float = 1e-3,
+    clust_weight: float = 10000.0,
+) -> tuple[ClustVAE, torch.optim.Optimizer]:
+    """Build a ClustVAE model and its Adamax optimiser.
+
+    Returns
+    -------
+    model : ClustVAE
+    optimiser : torch.optim.Adamax
+    """
+    device = _get_device()
+    model = ClustVAE(ngens, enc_sze, num_clust, clust_weight).to(device)
+    optimiser = torch.optim.Adamax(model.parameters(), lr=LR)
+    return model, optimiser
+
+
+def define_vae(
+    enc_sze: int, ngens: int
+) -> tuple[SimpleVAE, torch.optim.Optimizer]:
+    """Build a SimpleVAE model and its Adamax optimiser."""
+    device = _get_device()
+    model = SimpleVAE(ngens, enc_sze).to(device)
+    optimiser = torch.optim.Adamax(model.parameters(), lr=1e-3)
+    return model, optimiser
+
+
+def _get_device() -> torch.device:
+    """Return the best available device (CUDA > MPS > CPU)."""
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")

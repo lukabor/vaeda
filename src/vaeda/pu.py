@@ -1,38 +1,89 @@
+"""PU (Positive-Unlabeled) learning implementation using PyTorch.
+
+Replaces the TensorFlow/tf_keras-based implementation from v0.1.x.
+"""
+
+from __future__ import annotations
+
 import numpy as np
-import tensorflow as tf
-import tf_keras as tfk
+import torch
+import torch.nn.functional as F
 from rich.progress import Progress
 from sklearn.model_selection import RepeatedKFold
 from sklearn.neighbors import NearestNeighbors
 
 from .classifier import define_classifier
+from .vae import _get_device
+
+
+def _train_one_epoch(
+    model: torch.nn.Module,
+    optimiser: torch.optim.Optimizer,
+    X: torch.Tensor,
+    Y: torch.Tensor,
+) -> tuple[float, float]:
+    """Train a single epoch; return (loss, auc_approx)."""
+    model.train()
+    optimiser.zero_grad()
+    preds = model(X)
+    loss = F.binary_cross_entropy(preds, Y)
+    loss.backward()
+    optimiser.step()
+
+    # Approximate PRAUC via average precision (matches tf AUC(curve="PR"))
+    with torch.no_grad():
+        p = preds.detach().cpu().numpy()
+        t = Y.detach().cpu().numpy()
+        from sklearn.metrics import average_precision_score
+
+        try:
+            auc_val = float(average_precision_score(t, p))
+        except ValueError:
+            auc_val = 0.0
+
+    return float(loss.item()), auc_val
 
 
 def PU(
-    U,
-    P,
-    k,
-    N,
-    cls_eps,
-    seeds,
-    clss="NN",
-    _puPat=5,  # unused but kept for API compatibility
-    puLR=1e-3,
-    num_layers=1,
-    _stop_metric="ValAUC",  # unused but kept for API compatibility
-    _verbose=0,  # unused but kept for API compatibility
-):
+    U: np.ndarray,
+    P: np.ndarray,
+    k: int,
+    N: int,
+    cls_eps: int,
+    seeds: np.ndarray,
+    clss: str = "NN",
+    _puPat: int = 5,
+    puLR: float = 1e-3,
+    num_layers: int = 1,
+    _stop_metric: str = "ValAUC",
+    _verbose: int = 0,
+) -> tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+]:
+    """Positive-Unlabeled bagging classifier.
+
+    Parameters are the same as in v0.1.x for API compatibility.
+    """
+    device = _get_device()
     random_state = seeds[0]
-    rkf = RepeatedKFold(n_splits=k, n_repeats=N, random_state=random_state)
+    rkf = RepeatedKFold(
+        n_splits=k, n_repeats=N, random_state=random_state
+    )
 
     preds = np.zeros([U.shape[0]])
     preds_on_P = np.zeros([P.shape[0]])
 
     hists = np.zeros([N * k, cls_eps])
-
     val_hists = np.zeros([N * k, cls_eps])
     auc_hists = np.zeros([N * k, cls_eps])
     val_auc = np.zeros([N * k, cls_eps])
+
+    P_tensor = torch.tensor(P, dtype=torch.float32, device=device)
 
     i = 0
     with Progress() as progress:
@@ -40,7 +91,9 @@ def PU(
         for test, train in rkf.split(U):
             i += 1
             progress.update(
-                train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True
+                train_task,
+                description=f"{i!s}/{(N * k)!s} iterations",
+                refresh=True,
             )
 
             X = np.vstack([U[train, :], P])
@@ -52,44 +105,54 @@ def PU(
             x = U[test, :]
 
             if clss == "NN":
-                # DEFINE MODEL
-                rng = np.random.Generator(np.random.PCG64(1))  # noqa: F841 - sets numpy random state
-                tf.random.set_seed(seed=seeds[1])
-                classifier = define_classifier(ngens=X.shape[1], num_layers=num_layers)
+                # Set seeds for reproducibility
+                torch.manual_seed(seeds[1])
 
-                # shuffle training data
-                ind = np.arange(X.shape[0])
-                rng2 = np.random.Generator(np.random.PCG64(seeds[2]))
-                rng2.shuffle(ind)
-
-                auc = tfk.metrics.AUC(curve="PR", name="auc")
-                classifier.compile(
-                    optimizer=tfk.optimizers.Adam(learning_rate=puLR),
-                    loss="binary_crossentropy",
-                    metrics=[auc],
+                classifier = define_classifier(
+                    ngens=X.shape[1], num_layers=num_layers
+                )
+                optimiser = torch.optim.Adam(
+                    classifier.parameters(), lr=puLR
                 )
 
-                if (X.shape[0] * 0.1) >= 50:
-                    tf.random.set_seed(seeds[3])
-                    hist = classifier.fit(x=X, y=Y, epochs=cls_eps, verbose=0)
+                # Shuffle training data
+                ind = np.arange(X.shape[0])
+                rng2 = np.random.Generator(
+                    np.random.PCG64(seeds[2])
+                )
+                rng2.shuffle(ind)
 
-                else:
-                    ind = np.arange(X.shape[0])
-                    rng3 = np.random.Generator(np.random.PCG64(seeds[2]))
-                    rng3.shuffle(ind)
+                X_t = torch.tensor(
+                    X[ind, :], dtype=torch.float32, device=device
+                )
+                Y_t = torch.tensor(
+                    Y[ind], dtype=torch.float32, device=device
+                )
+                x_t = torch.tensor(
+                    x, dtype=torch.float32, device=device
+                )
 
-                    tf.random.set_seed(seeds[3])
-                    hist = classifier.fit(
-                        x=X[ind, :], y=Y[ind], epochs=cls_eps, verbose=0
+                torch.manual_seed(seeds[3])
+                for ep in range(cls_eps):
+                    loss_val, auc_val = _train_one_epoch(
+                        classifier, optimiser, X_t, Y_t
                     )
+                    hists[i - 1, ep] = loss_val
+                    auc_hists[i - 1, ep] = auc_val
 
-                hists[i - 1, : len(hist.history["loss"])] = hist.history["loss"]
-                auc_hists[i - 1, : len(hist.history["auc"])] = hist.history["auc"]
-
-                tf.random.set_seed(seeds[3])  # was seeds[4]
-                preds[test] = preds[test] + np.array(classifier(x)).flatten()
-                tf.random.set_seed(seeds[3])
-                preds_on_P = preds_on_P + np.array(classifier(P)).flatten()
+                # Predictions
+                classifier.eval()
+                with torch.no_grad():
+                    torch.manual_seed(seeds[3])
+                    preds[test] = (
+                        preds[test]
+                        + classifier(x_t).cpu().numpy()
+                    )
+                    torch.manual_seed(seeds[3])
+                    preds_on_P = (
+                        preds_on_P
+                        + classifier(P_tensor).cpu().numpy()
+                    )
 
             if clss == "knn":
                 neighbors = int(np.sqrt(X.shape[0]))
@@ -98,12 +161,16 @@ def PU(
 
                 graph = knn.kneighbors_graph(x)
                 preds[test] = preds[test] + np.squeeze(
-                    np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
+                    np.array(
+                        np.sum(graph[:, Y == 1], axis=1) / neighbors
+                    )
                 )
 
                 graph = knn.kneighbors_graph(P)
                 preds_on_P = preds_on_P + np.squeeze(
-                    np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
+                    np.array(
+                        np.sum(graph[:, Y == 1], axis=1) / neighbors
+                    )
                 )
 
     preds = preds / ((i / k) * (k - 1))
@@ -113,20 +180,29 @@ def PU(
 
 
 def epoch_PU(
-    U,
-    P,
-    k,
-    N,
-    cls_eps,
-    seeds,
-    _puPat=5,  # unused but kept for API compatibility
-    puLR=1e-3,
-    num_layers=1,
-    _stop_metric="ValAUC",  # unused but kept for API compatibility
-    _verbose=0,  # unused but kept for API compatibility
-):
+    U: np.ndarray,
+    P: np.ndarray,
+    k: int,
+    N: int,
+    cls_eps: int,
+    seeds: np.ndarray,
+    _puPat: int = 5,
+    puLR: float = 1e-3,
+    num_layers: int = 1,
+    _stop_metric: str = "ValAUC",
+    _verbose: int = 0,
+) -> "_EpochHistory":
+    """Train a single PU fold to determine optimal epoch count.
+
+    Returns a history-like object with a ``.history`` dict containing
+    ``"loss"`` and ``"auc"`` lists, matching the tf_keras API used by
+    the caller.
+    """
+    device = _get_device()
     random_state = seeds[0]
-    rkf = RepeatedKFold(n_splits=k, n_repeats=N, random_state=random_state)
+    rkf = RepeatedKFold(
+        n_splits=k, n_repeats=N, random_state=random_state
+    )
 
     i = 0
     with Progress() as progress:
@@ -134,31 +210,55 @@ def epoch_PU(
         for _, train in rkf.split(U):
             i += 1
             progress.update(
-                train_task, description=f"{i!s}/{(N * k)!s} iterations", refresh=True
+                train_task,
+                description=f"{i!s}/{(N * k)!s} iterations",
+                refresh=True,
             )
             X = np.vstack([U[train, :], P])
-            Y = np.concatenate([np.zeros([len(train)]), np.ones([P.shape[0]])])
+            Y = np.concatenate([
+                np.zeros([len(train)]),
+                np.ones([P.shape[0]]),
+            ])
 
-            # DEFINE MODEL
-            rng = np.random.Generator(np.random.PCG64(1))  # noqa: F841 - sets numpy random state
-            tf.random.set_seed(seeds[1])
-            classifier = define_classifier(X.shape[1], num_layers=num_layers)
-
-            # shuffle training data
-            ind = np.arange(X.shape[0])
-            rng2 = np.random.Generator(np.random.PCG64(seeds[2]))
-            rng2.shuffle(ind)
-
-            auc = tfk.metrics.AUC(curve="PR", name="auc")
-            classifier.compile(
-                optimizer=tfk.optimizers.Adam(learning_rate=puLR),
-                loss="binary_crossentropy",
-                metrics=[auc],
+            torch.manual_seed(seeds[1])
+            classifier = define_classifier(
+                X.shape[1], num_layers=num_layers
+            )
+            optimiser = torch.optim.Adam(
+                classifier.parameters(), lr=puLR
             )
 
-            tf.random.set_seed(seeds[3])
-            hist = classifier.fit(x=X, y=Y, epochs=cls_eps, verbose=False)
+            # Shuffle training data
+            ind = np.arange(X.shape[0])
+            rng2 = np.random.Generator(
+                np.random.PCG64(seeds[2])
+            )
+            rng2.shuffle(ind)
 
-            break
+            X_t = torch.tensor(
+                X[ind, :], dtype=torch.float32, device=device
+            )
+            Y_t = torch.tensor(
+                Y[ind], dtype=torch.float32, device=device
+            )
 
-    return hist
+            torch.manual_seed(seeds[3])
+            loss_history: list[float] = []
+            auc_history: list[float] = []
+            for _ in range(cls_eps):
+                loss_val, auc_val = _train_one_epoch(
+                    classifier, optimiser, X_t, Y_t
+                )
+                loss_history.append(loss_val)
+                auc_history.append(auc_val)
+
+            break  # Only first fold, matching v0.1.x behaviour
+
+    return _EpochHistory({"loss": loss_history, "auc": auc_history})
+
+
+class _EpochHistory:
+    """Minimal history object mimicking the tf_keras History API."""
+
+    def __init__(self, history: dict[str, list[float]]) -> None:
+        self.history = history

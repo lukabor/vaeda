@@ -1,5 +1,5 @@
 # =============================================================================
-# Vaeda Development Container
+# Vaeda Development Container (v0.2.0 — PyTorch backend)
 # =============================================================================
 # Build targets:
 #   Production:   docker build --target production -t vaeda:prod .
@@ -7,7 +7,7 @@
 #
 # Run examples:
 #   docker run -it --rm -v $(pwd):/usr/vaeda vaeda:dev
-#   docker compose up dev   # starts distant server on port 8080
+#   docker compose up dev
 # =============================================================================
 
 # -----------------------------------------------------------------------------
@@ -25,13 +25,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && mkdir /usr/vaeda \
     && mkdir -p /root/.ssh && chmod 700 /root/.ssh
 
-# Ensure uv is installed (fallback if base image changes or for custom bases)
 RUN command -v uv >/dev/null 2>&1 || \
     curl -LsSf https://astral.sh/uv/install.sh | sh
 
 ENV PATH="/root/.local/bin:$PATH"
 
-WORKDIR /usr/vaeda 
+WORKDIR /usr/vaeda
 
 # uv configuration
 ENV UV_LINK_MODE=copy \
@@ -40,35 +39,31 @@ ENV UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv
 
 # -----------------------------------------------------------------------------
-# Production stage: core dependencies only (default installation)
+# Production stage: core dependencies only
 # -----------------------------------------------------------------------------
 FROM base AS production
 
 COPY pyproject.toml uv.lock* ./
 
-# Install core dependencies only
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --no-install-project 2>/dev/null || \
     uv sync --no-dev --no-install-project
 
 COPY . .
 
-# Install the project itself
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev 2>/dev/null || uv sync --no-dev
 
-# Activate venv in shell
 ENV PATH="/opt/venv/bin:$PATH"
 
 ENTRYPOINT []
-CMD ["sh", "-c", "python -c \"import vaeda; print(f'vaeda prod ready')\" && sleep infinity"]
+CMD ["sh", "-c", "python -c \"import vaeda; print(f'vaeda {vaeda.__version__} prod ready (PyTorch backend)')\" && sleep infinity"]
 
 # -----------------------------------------------------------------------------
-# Development stage: core + dev dependencies 
+# Development stage: core + dev dependencies
 # -----------------------------------------------------------------------------
 FROM base AS development
 
-# Additional dev tools at system level
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ripgrep \
     fd-find \
@@ -76,25 +71,21 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml uv.lock* ./ 
+COPY pyproject.toml uv.lock* ./
 
-# Install core + dev dependencies
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --group dev --no-install-project 2>/dev/null || \
     uv sync --group dev --no-install-project
 
 COPY . .
 
-# Install the project in editable mode
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --group dev 2>/dev/null || uv sync --group dev
 
-ENV PATH="/root/.distant/bin:/opt/venv/bin:$PATH" \
+ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1
 
-# Expose basic shell port
 EXPOSE 80
 
 ENTRYPOINT []
-CMD ["sh", "-c", "python -c \"import vaeda; print(f'vaeda dev ready')\" && sleep infinity"]
-
+CMD ["sh", "-c", "python -c \"import vaeda; print(f'vaeda {vaeda.__version__} dev ready (PyTorch backend)')\" && sleep infinity"]

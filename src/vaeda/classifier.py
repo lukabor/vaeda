@@ -1,28 +1,49 @@
-import tf_keras as tfk
+"""Neural network classifier for PU learning, using PyTorch.
+
+Replaces the tf_keras-based classifier from v0.1.x.
+"""
+
+from __future__ import annotations
+
+import torch
+import torch.nn as nn
 from loguru import logger
-from tf_keras import layers as tfkl
 
 
-def define_classifier(ngens: int, num_layers: int = 1) -> tfk.Model:
-    match num_layers:
-        case 1:
-            classifier = tfk.Sequential([
-                tfkl.InputLayer(input_shape=[ngens]),
-                tfkl.BatchNormalization(),
-                tfkl.Dense(1, activation="sigmoid"),
-            ])
-        case 2:
+class BinaryClassifier(nn.Module):
+    """Simple feedforward binary classifier with batch normalisation."""
+
+    def __init__(self, n_input: int, num_layers: int = 1) -> None:
+        super().__init__()
+        layers: list[nn.Module] = [nn.BatchNorm1d(n_input)]
+        if num_layers == 1:
+            layers.append(nn.Linear(n_input, 1))
+        elif num_layers == 2:
             logger.info("using 2 layers in classifier")
-            classifier = tfk.Sequential([
-                tfkl.InputLayer(input_shape=[ngens]),
-                tfkl.BatchNormalization(),
-                tfkl.Dense(3, activation="relu"),
-                tfkl.Dense(1, activation="sigmoid"),
+            layers.extend([
+                nn.Linear(n_input, 3),
+                nn.ReLU(),
+                nn.Linear(3, 1),
             ])
-        case _:
+        else:
             msg = "Only using 1 or 2 layers is supported"
             raise ValueError(msg)
+        layers.append(nn.Sigmoid())
+        self.net = nn.Sequential(*layers)
 
-    model = tfk.Model(inputs=classifier.inputs, outputs=classifier.outputs[0])
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        return self.net(x).squeeze(-1)
 
+
+def define_classifier(
+    ngens: int, num_layers: int = 1
+) -> BinaryClassifier:
+    """Build a binary classifier and return it.
+
+    The model is placed on the best available device (CUDA > MPS > CPU).
+    """
+    from .vae import _get_device
+
+    device = _get_device()
+    model = BinaryClassifier(ngens, num_layers=num_layers).to(device)
     return model

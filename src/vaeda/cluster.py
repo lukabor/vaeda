@@ -27,7 +27,10 @@ def fast_cluster(X, comp=20):
     n_clusters = int(X.shape[0] * 0.1)
 
     kmeans = MiniBatchKMeans(
-        n_clusters=n_clusters, random_state=0, batch_size=1024, max_iter=20
+        n_clusters=n_clusters,
+        random_state=0,
+        batch_size=1024,
+        max_iter=20,
     ).fit(pca_proj)
 
     mini_clust = kmeans.predict(pca_proj)

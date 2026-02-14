@@ -5,7 +5,7 @@ from .pu import PU, epoch_PU
 from .vae import define_clust_vae
 from .vaeda import vaeda
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
     "PU",
     "cluster",

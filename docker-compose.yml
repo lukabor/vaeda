@@ -15,7 +15,7 @@ services:
               count: all
               capabilities: [gpu]
 
-  # Development - core + dev tools + distant server
+  # Development - core + dev tools
   dev:
     build:
       context: .

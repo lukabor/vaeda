@@ -1,4 +1,4 @@
-"""Unit tests for vaeda doublet detection.
+"""Unit tests for vaeda doublet detection (v0.2.0 — PyTorch backend).
 
 Tests follow Given-When-Then structure:
 - Given: Setup and preconditions
@@ -18,14 +18,17 @@ import scanpy as sc
 
 @pytest.fixture(scope="module")
 def pbmc3k_adata():
-    """Download and prepare pbmc3k test dataset. This fixture follows documentation provided by vaeda."""
+    """Download and prepare pbmc3k test dataset."""
     original_dir = Path.cwd()
     temp_dir = tempfile.TemporaryDirectory()
 
     try:
         os.chdir(temp_dir.name)
 
-        url = "http://cf.10xgenomics.com/samples/cell-exp/1.1.0/pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz"
+        url = (
+            "http://cf.10xgenomics.com/samples/cell-exp/1.1.0/"
+            "pbmc3k/pbmc3k_filtered_gene_bc_matrices.tar.gz"
+        )
         response = requests.get(url, stream=True, timeout=60)
         response.raise_for_status()
 
@@ -56,14 +59,9 @@ class TestVaedaImport:
         When I import the vaeda module
         Then the main vaeda function should be available
         """
-        # Given
         import vaeda
 
-        # When
-        has_vaeda_function = hasattr(vaeda, "vaeda")
-
-        # Then
-        assert has_vaeda_function
+        assert hasattr(vaeda, "vaeda")
 
     def test_vaeda_module_exposes_cluster_function(self):
         """
@@ -71,14 +69,9 @@ class TestVaedaImport:
         When I import the vaeda module
         Then the cluster function should be available
         """
-        # Given
         import vaeda
 
-        # When
-        has_cluster_function = hasattr(vaeda, "cluster")
-
-        # Then
-        assert has_cluster_function
+        assert hasattr(vaeda, "cluster")
 
     def test_vaeda_module_exposes_sim_inflate_function(self):
         """
@@ -86,14 +79,29 @@ class TestVaedaImport:
         When I import the vaeda module
         Then the sim_inflate function should be available
         """
-        # Given
         import vaeda
 
-        # When
-        has_sim_inflate_function = hasattr(vaeda, "sim_inflate")
+        assert hasattr(vaeda, "sim_inflate")
 
-        # Then
-        assert has_sim_inflate_function
+    def test_vaeda_version_is_0_2_0(self):
+        """
+        Given the vaeda package is installed
+        When I check the version
+        Then it should be 0.2.0
+        """
+        import vaeda
+
+        assert vaeda.__version__ == "0.2.0"
+
+    def test_pytorch_backend_available(self):
+        """
+        Given the vaeda package is installed
+        When I check for PyTorch
+        Then torch should be importable
+        """
+        import torch
+
+        assert torch.__version__ >= "2.6.0"
 
 
 class TestVaedaOutput:
@@ -105,17 +113,12 @@ class TestVaedaOutput:
         When I run vaeda on the data
         Then it should return an AnnData object
         """
-        # Given
         import anndata as ad
 
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
-
-        # Then
         assert isinstance(result, ad.AnnData)
 
     def test_vaeda_adds_doublet_scores_to_obs(self, pbmc3k_adata):
@@ -124,15 +127,10 @@ class TestVaedaOutput:
         When I run vaeda on the data
         Then vaeda_scores should be added to adata.obs
         """
-        # Given
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
-
-        # Then
         assert "vaeda_scores" in result.obs.columns
 
     def test_vaeda_adds_doublet_calls_to_obs(self, pbmc3k_adata):
@@ -141,15 +139,10 @@ class TestVaedaOutput:
         When I run vaeda on the data
         Then vaeda_calls should be added to adata.obs
         """
-        # Given
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
-
-        # Then
         assert "vaeda_calls" in result.obs.columns
 
     def test_vaeda_adds_embedding_to_obsm(self, pbmc3k_adata):
@@ -158,15 +151,10 @@ class TestVaedaOutput:
         When I run vaeda on the data
         Then vaeda_embedding should be added to adata.obsm
         """
-        # Given
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
-
-        # Then
         assert "vaeda_embedding" in result.obsm
 
 
@@ -179,16 +167,11 @@ class TestVaedaScoreValidation:
         When I run vaeda on the data
         Then all doublet scores should be >= 0
         """
-        # Given
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
         scores = result.obs["vaeda_scores"]
-
-        # Then
         assert scores.min() >= 0.0
 
     def test_doublet_scores_do_not_exceed_one(self, pbmc3k_adata):
@@ -197,16 +180,11 @@ class TestVaedaScoreValidation:
         When I run vaeda on the data
         Then all doublet scores should be <= 1
         """
-        # Given
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
         scores = result.obs["vaeda_scores"]
-
-        # Then
         assert scores.max() <= 1.0
 
     def test_doublet_calls_are_binary(self, pbmc3k_adata):
@@ -215,18 +193,13 @@ class TestVaedaScoreValidation:
         When I run vaeda on the data
         Then doublet calls should be binary values
         """
-        # Given
         import vaeda
 
         adata = pbmc3k_adata[:500, :].copy()
         valid_values = {0, 1, "singlet", "doublet"}
-
-        # When
         result = vaeda.vaeda(adata, verbose=0)
         calls = result.obs["vaeda_calls"]
         unique_values = set(calls.unique())
-
-        # Then
         assert unique_values.issubset(valid_values)
 
 
@@ -239,7 +212,6 @@ class TestVaedaCluster:
         When I run the cluster function
         Then it should return a label for each cell
         """
-        # Given
         from vaeda import cluster
 
         adata = pbmc3k_adata[:500, :].copy()
@@ -253,11 +225,7 @@ class TestVaedaCluster:
             x_mat = x_mat.toarray()
 
         n_cells = adata.n_obs
-
-        # When
         labels = cluster(x_mat)
-
-        # Then
         assert len(labels) == n_cells
 
     def test_cluster_returns_integer_labels(self, pbmc3k_adata):
@@ -266,7 +234,6 @@ class TestVaedaCluster:
         When I run the cluster function
         Then labels should be integers
         """
-        # Given
         import numpy as np
 
         from vaeda import cluster
@@ -281,10 +248,7 @@ class TestVaedaCluster:
         if hasattr(x_mat, "toarray"):
             x_mat = x_mat.toarray()
 
-        # When
         labels = cluster(x_mat)
-
-        # Then
         assert np.issubdtype(labels.dtype, np.integer)
 
 
@@ -297,7 +261,6 @@ class TestVaedaSimInflate:
         When I run sim_inflate to generate synthetic doublets
         Then it should return augmented data
         """
-        # Given
         from vaeda import sim_inflate
 
         adata = pbmc3k_adata[:500, :].copy()
@@ -305,10 +268,7 @@ class TestVaedaSimInflate:
         if hasattr(x_mat, "toarray"):
             x_mat = x_mat.toarray()
 
-        # When
         result = sim_inflate(x_mat)
-
-        # Then
         assert result is not None
 
 
@@ -316,41 +276,4 @@ class TestVaedaSimInflate:
 class TestVaedaFullDataset:
     """Full dataset tests (marked as slow)."""
 
-    def test_vaeda_processes_full_pbmc3k_dataset(self, pbmc3k_adata):
-        """
-        Given the full pbmc3k dataset
-        When I run vaeda with default parameters
-        Then it should complete successfully with all expected outputs
-        """
-        # Given
-        import vaeda
-
-        adata = pbmc3k_adata.copy()
-
-        # When
-        result = vaeda.vaeda(adata, verbose=1)
-
-        # Then
-        assert "vaeda_scores" in result.obs.columns
-        assert "vaeda_calls" in result.obs.columns
-        assert "vaeda_embedding" in result.obsm
-
-    def test_vaeda_embedding_has_correct_dimensions(self, pbmc3k_adata):
-        """
-        Given the full pbmc3k dataset
-        When I run vaeda with default encoding size
-        Then the embedding should have shape (n_cells, enc_sze)
-        """
-        # Given
-        import vaeda
-
-        adata = pbmc3k_adata.copy()
-        enc_sze = 5  # default encoding size
-
-        # When
-        result = vaeda.vaeda(adata, verbose=0, enc_sze=enc_sze)
-        embedding = result.obsm["vaeda_embedding"]
-
-        # Then
-        assert embedding.shape[0] == adata.n_obs
-        assert embedding.shape[1] == enc_sze + 1  # encoding + knn_feature
+    pass

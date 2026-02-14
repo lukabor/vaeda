@@ -19,19 +19,26 @@ def init_logger(
 
     if msg_format is None:
         if in_notebook:
-            msg_format = "<green>{name}</green>:<red>{function}</red>:<blue>{line}</blue> - <level>{message}</level>"
+            msg_format = (
+                "<green>{name}</green>:<red>{function}</red>"
+                ":<blue>{line}</blue> - <level>{message}</level>"
+            )
         else:
-            msg_format = "{time:YYYY-MM-DD HH:mm:ss}|<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+            msg_format = (
+                "{time:YYYY-MM-DD HH:mm:ss}"
+                "|<cyan>{name}</cyan>:<cyan>{function}</cyan>"
+                ":<cyan>{line}</cyan> - <level>{message}</level>"
+            )
 
     match verbose:
         case 3:
-            log_level = "DEBUG"  # catches DEBUG, INFO, WARNING, ERROR, and CRITICAL
+            log_level = "DEBUG"
         case 2:
-            log_level = "INFO"  # catches INFO, WARNING, ERROR, and CRITICAL
+            log_level = "INFO"
         case 1:
-            log_level = "WARNING"  # catches WARNING, ERROR, and CRITICAL
+            log_level = "WARNING"
         case _:
-            log_level = "ERROR"  # Catches ERROR and CRITICAL
+            log_level = "ERROR"
 
     config = {
         "handlers": [
@@ -47,9 +54,16 @@ def init_logger(
 
     if save_log:
         logger.add(
-            sink=f"{__package__}_{datetime.datetime.now(tz=timezone).strftime('%Y-%d-%m--%H-%M-%S')}.log",
+            sink=(
+                f"{__package__}_"
+                f"{datetime.datetime.now(tz=timezone).strftime('%Y-%d-%m--%H-%M-%S')}"
+                ".log"
+            ),
             level=log_level,
-            format="{time:YYYY-MM-DD HH:mm:ss}|{level}|{name}:{function}:{line} - {message}",
+            format=(
+                "{time:YYYY-MM-DD HH:mm:ss}|{level}"
+                "|{name}:{function}:{line} - {message}"
+            ),
             filter="dsd",
             backtrace=True,
             diagnose=True,

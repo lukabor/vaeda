@@ -5,6 +5,55 @@ All notable changes to the `vaeda` package will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-02-14
+
+### Changed
+- **BREAKING**: Migrated deep learning backend from TensorFlow/tf_keras to **PyTorch >= 2.6.0**.
+  This is a complete rewrite of all neural network components:
+  - `vae.py`: VAE encoder, decoder, and cluster classifier are now `torch.nn.Module` subclasses.
+    The probabilistic layer (TensorFlow Probability `IndependentNormal`) is replaced with
+    `torch.distributions.Independent(Normal(...))` and the reparameterisation trick.
+  - `classifier.py`: Binary classifier is now a `torch.nn.Module` using `nn.Sequential`.
+  - `pu.py`: PU learning training loops rewritten as manual PyTorch training loops instead
+    of `model.fit()`. Uses `sklearn.metrics.average_precision_score` for PRAUC calculation
+    instead of `tf.keras.metrics.AUC`.
+  - `vaeda.py`: Main pipeline VAE training is now a manual PyTorch training loop with
+    explicit early stopping and learning-rate scheduling via
+    `torch.optim.lr_scheduler.MultiplicativeLR`.
+- **BREAKING**: Removed all TensorFlow, tf_keras, and TensorFlow Probability dependencies.
+  Core dependencies are now: `torch>=2.6.0` (replacing `tensorflow[and-cuda]>=2.20`,
+  `tensorflow-probability[tf]>=0.25`).
+- `define_clust_vae()` and `define_vae()` now return `(model, optimiser)` tuples instead of
+  a compiled Keras model, since PyTorch separates model definition from optimiser creation.
+- Device selection is automatic: CUDA > MPS > CPU (via `_get_device()` helper).
+
+### Added
+- Automatic device selection supporting CUDA, Apple MPS, and CPU fallback.
+- `_EpochHistory` helper class in `pu.py` to provide a `.history` dict matching the
+  tf_keras `History` API expected by the main pipeline.
+- Test for PyTorch version >= 2.6.0 and version string 0.2.0.
+
+### Removed
+- `tensorflow[and-cuda]>=2.20` dependency
+- `tensorflow-probability[tf]>=0.25` dependency
+- `tf_keras` dependency
+- All `tf.random.set_seed()` calls (replaced with `torch.manual_seed()`)
+- All `tf.one_hot()` calls (replaced with `np.eye()` indexing)
+- `Programming Language :: Rust` classifier (was incorrect)
+
+### Fixed
+- Removed inaccurate `Programming Language :: Rust` trove classifier from `pyproject.toml`.
+
+### Migration Guide
+- Users upgrading from v0.1.x need to install PyTorch instead of TensorFlow.
+  The public API (`vaeda.vaeda()`, `vaeda.sim_inflate()`, `vaeda.cluster()`, etc.)
+  is **unchanged** — only the underlying backend has changed.
+- GPU support now requires a CUDA-compatible PyTorch installation
+  (`pip install torch --index-url https://download.pytorch.org/whl/cu124`).
+- For Apple Silicon users, MPS acceleration is automatically used when available.
+- The `verbose` parameter for `vaeda()` continues to control logging; the TF-specific
+  `verbose` argument to `model.fit()` is no longer applicable.
+
 ## [0.1.1] - 2026-02-14
 
 ### Added
@@ -33,11 +82,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `uv` support for dependency management
 
 ### Changed
-- **BREAKING**: Migrated from `tf.keras` to `tf_keras` imports to resolve compatibility issues with TensorFlow Probability and Keras 3.x. This was necessary due to the rapid evolution of the TensorFlow ecosystem - TensorFlow Probability layers were designed for Keras 2.x, but newer TensorFlow versions ship with Keras 3.x by default. The `tf_keras` package provides backward compatibility by maintaining the Keras 2.x API. See [TensorFlow Probability v0.25.0 release notes](https://github.com/tensorflow/probability/releases/tag/v0.25.0) and GitHub issues [#2006](https://github.com/tensorflow/probability/issues/2006), [#1795](https://github.com/tensorflow/probability/issues/1795), [#1774](https://github.com/tensorflow/probability/issues/1774).
-- Updated dependency specifications with minimum versions for better stability:
-  - `tensorflow>=2.20` (was unversioned)
-  - `tensorflow-probability[tf]>=0.25` (was unversioned)
-  - `scikit-learn>=1.7` (was unversioned)
+- **BREAKING**: Migrated from `tf.keras` to `tf_keras` imports to resolve compatibility issues with TensorFlow Probability and Keras 3.x.
+- Updated dependency specifications with minimum versions for better stability
 - Enhanced sparse matrix handling to support both sparse and dense AnnData objects
 - Updated to Python 3.12+ with modern type hints
 - Configure ruff for linting and formatting
@@ -49,51 +95,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed metrics compatibility in PU learning classifier
 - Improved error handling for different matrix formats in AnnData objects
 
-### Technical Details
-The main compatibility issue was caused by version conflicts between TensorFlow Probability (which uses the older Keras 2.x API) and newer TensorFlow versions (which ship with Keras 3.x). The solution involved:
-
-1. **vaeda/vae.py**: Replaced `tf.keras` imports with `tf_keras`, fixed optimizer references
-2. **vaeda/vaeda.py**: Added `tf_keras` import, updated callbacks, improved matrix handling  
-3. **vaeda/classifier.py**: Migrated to `tf_keras` for model definition
-4. **vaeda/PU.py**: Updated metrics and optimizers to use `tf_keras` API
-
-This ensures compatibility with:
-- TensorFlow 2.20+ 
-- TensorFlow Probability 0.25+
-- Python 3.12+
-
 ## [0.0.30] - 2022-04-10
 
 ### Added
-- Initial release by Hannah Schriever (hcs31@pitt.edu) using `setup.py` packaging (standard approach at the time)
+- Initial release by Hannah Schriever (hcs31@pitt.edu)
 - Core vaeda algorithm for doublet detection in single-cell RNA sequencing data
 - Variational autoencoder-based approach for learning cell representations
 - PU (Positive-Unlabeled) learning framework for doublet classification
-- KNN-based feature extraction for doublet estimation
-- Clustering-based simulated doublet filtering
-- Comprehensive doublet scoring and calling functionality
-
-### Features
-- Support for AnnData objects (scanpy ecosystem compatibility)
-- Configurable gene filtering and highly variable gene selection
-- PCA-based dimensionality reduction
-- Early stopping and learning rate scheduling for model training
-- Flexible doublet rate estimation with user-defined or heuristic approaches
-- Comprehensive logging and intermediate result saving capabilities
-
-### Dependencies (Original)
-- numpy
-- tensorflow (unversioned)
-- scipy  
-- scikit-learn (unversioned)
-- kneed
-- anndata
-- tensorflow_probability (unversioned)
-- scanpy>1.3.3
-
-### Technical Implementation
-- Built using TensorFlow/Keras for deep learning components
-- Scikit-learn for traditional ML tasks (PCA, clustering, cross-validation)
-- Scanpy integration for single-cell analysis workflows
-- Custom VAE architecture with clustering-aware loss function
-- Bagging-based PU learning with configurable fold structures
