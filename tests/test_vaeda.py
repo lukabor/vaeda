@@ -94,3 +94,75 @@ class TestVaedaImport:
 
         # Then
         assert has_sim_inflate_function
+
+class TestVaedaOutput:
+    """Test vaeda function output structure."""
+
+    def test_vaeda_returns_anndata_object(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then it should return an AnnData object
+        """
+        # Given
+        import anndata as ad
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+
+        # Then
+        assert isinstance(result, ad.AnnData)
+
+    def test_vaeda_adds_doublet_scores_to_obs(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then vaeda_scores should be added to adata.obs
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+
+        # Then
+        assert "vaeda_scores" in result.obs.columns
+
+    def test_vaeda_adds_doublet_calls_to_obs(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then vaeda_calls should be added to adata.obs
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+
+        # Then
+        assert "vaeda_calls" in result.obs.columns
+
+    def test_vaeda_adds_embedding_to_obsm(self, pbmc3k_adata):
+        """
+        Given an AnnData object with raw counts
+        When I run vaeda on the data
+        Then vaeda_embedding should be added to adata.obsm
+        """
+        # Given
+        import vaeda
+
+        adata = pbmc3k_adata[:500, :].copy()
+
+        # When
+        result = vaeda.vaeda(adata, verbose=0)
+
+        # Then
+        assert "vaeda_embedding" in result.obsm
