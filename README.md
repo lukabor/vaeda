@@ -1,102 +1,291 @@
 # vaeda
 
-vaeda (variaitonal auto-encoder (vae) for doublet annotation (da)) is a python package for doublet annotation in single cell RNA-sequencing. For method details and comparisons to alternative doublet annotation tools, see the [vaeda publication](https://academic.oup.com/bioinformatics/article/39/1/btac720/6808614).
+vaeda (variational auto-encoder for doublet annotation) is a Python package for doublet annotation in single-cell RNA sequencing data. For method details and comparisons to alternative doublet annotation tools, see the [vaeda publication](https://academic.oup.com/bioinformatics/article/39/1/btac720/6808614).
+
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+  - [Using uv (Recommended)](#using-uv-recommended)
+  - [Using pip](#using-pip)
+  - [Using conda](#using-conda-not-recommended)
+- [Quick Start](#quick-start)
+- [Development](#development)
+  - [Setup](#setup)
+  - [Makefile Commands](#makefile-commands)
+  - [Running Tests](#running-tests)
+  - [Code Quality](#code-quality)
+  - [Type Checking](#type-checking)
+  - [Docker Development Environment](#docker-development-environment)
+- [Project Structure](#project-structure)
+- [API Reference](#api-reference)
+- [Other Doublet Detection Tools](#other-doublet-detection-tools)
+- [Citation](#citation)
+- [License](#license)
+
+## Requirements
+
+- Python 3.12+
+- TensorFlow 2.20+
+- TensorFlow Probability 0.25+
 
 ## Installation
 
-### Recommended: Using uv (Modern Python Package Manager)
+### Using uv (Recommended)
 
-The easiest and most reliable way to install vaeda with all its dependencies:
+[uv](https://docs.astral.sh/uv/) is a fast Python package manager that handles vaeda's complex dependencies (TensorFlow, TensorFlow Probability, tf_keras) automatically with full reproducibility via lockfiles.
 
 ```bash
 # Install uv if you haven't already
 # See: https://docs.astral.sh/uv/getting-started/installation/
 
-# Create a virtual environment
-uv venv vaeda-env
+# Install from GitHub (specific release)
+uv pip install git+https://github.com/lukabor/vaeda.git@v0.1.0
 
-# Activate the virtual environment
-source vaeda-env/bin/activate  # On Windows: vaeda-env\Scripts\activate
-
-# Install released version from PyPI
-uv pip install vaeda
-
-# OR install from source (run inside a cloned repository)
+# Or install from a cloned repository
+git clone https://github.com/lukabor/vaeda.git
+cd vaeda
 uv pip install .
 ```
 
-**Why uv?** vaeda has complex dependencies (TensorFlow, TensorFlow Probability, tf_keras) that require careful version coordination due to Keras 2/3 compatibility issues. uv handles this automatically.
-
-#### For Development/Contributors
-
-If you've cloned the repository and want the exact development environment:
+### Using pip
 
 ```bash
-uv sync  # Uses uv.lock for exact reproducibility
+# Install from GitHub (specific release)
+pip install git+https://github.com/lukabor/vaeda.git@v0.1.0
+
+# Or from a cloned repository
+git clone https://github.com/lukabor/vaeda.git
+cd vaeda
+pip install .
 ```
 
-This installs the precise versions used by the maintainers.
+### Using conda (Not Recommended)
 
-### Alternative: Using pip/conda
-
-If you prefer traditional tools, use these **updated** instructions:
+> ⚠️ **Warning:** Using conda for vaeda installation is not recommended due to several issues:
+>
+> - **Reproducibility:** Conda's dependency resolution can produce different environments on different machines or at different times, making it difficult to reproduce results.
+> - **Nested environments:** Mixing conda and pip can lead to conflicts, especially with complex dependencies like TensorFlow. Conda may install its own Python, creating nested or conflicting virtual environments.
+> - **Dependency conflicts:** TensorFlow and TensorFlow Probability versions must be carefully coordinated. Conda's solver may not respect these constraints correctly.
+> - **Slower resolution:** Conda's dependency resolution is significantly slower than uv or pip.
+>
+> If you must use conda, create a minimal environment and use pip for the actual installation:
 
 ```bash
-# Create and activate environment
+# Create a minimal conda environment with just Python
 conda create -n vaeda_env python=3.13
 conda activate vaeda_env
 
-# Install vaeda and dependencies (handles tf_keras compatibility automatically)
-pip install vaeda
+# Use pip to install vaeda (not conda)
+pip install git+https://github.com/lukabor/vaeda.git@v0.1.0
 ```
 
-**Note:** Recent versions (0.0.31+) include compatibility fixes for TensorFlow 2.13+ and Keras 3.x. The old manual dependency pinning is no longer needed.
+## Quick Start
 
-### Legacy Installation (Not Recommended)
-
-<details>
-<summary>Click to see original instructions (deprecated)</summary>
-
-These instructions are from the original 2022 release and will not work with current Python/TensorFlow versions:
-
-```
-conda create -n vaeda_env python=3.8
-conda activate vaeda_env
-
-pip3 install --upgrade tensorflow==2.8.0
-pip3 install --upgrade tensorflow-probability==0.16.0
-pip3 install 'scanpy[leiden]'==1.8.0
-pip3 install typing-extensions==3.7.4 absl-py==0.10 six==1.15.0 wrapt==1.12.1 xlrd==1.2.0
-pip3 install -i https://test.pypi.org/simple/ vaeda==0.0.30
-```
-
-**⚠️ Warning:** These instructions are outdated and will fail with current TensorFlow/Python versions.
-
-</details>
-
-#### Quick Start
-```
+```python
 import vaeda
 
-...
+# adata is an AnnData object with raw counts in adata.X
+result = vaeda.vaeda(adata)
 
-res = vaeda.vaeda(adata)
-
+# Results are stored in the AnnData object:
+# - adata.obsm['vaeda_embedding']: VAE encoding
+# - adata.obs['vaeda_scores']: doublet scores
+# - adata.obs['vaeda_calls']: doublet/singlet calls
 ```
 
-Where:
-* adata is an annotated data matrix with raw counts in adata.X
-* res is adata updated with the encoding generated by vaeda stored in adata.obsm['vaeda_embedding'] and the doublet scores and calls stored in adata.obs['vaeda_scores'] and adata.obs['vaeda_calls'] respectively.
+For a detailed example, see the [tutorial notebook](https://github.com/lukabor/vaeda/blob/main/doc/vaeda_scanpy-pbmc3k-tutorial.ipynb), which adapts the [scanpy PBMC3k tutorial](https://scanpy-tutorials.readthedocs.io/en/latest/pbmc3k.html) to demonstrate doublet annotation with vaeda.
 
-#### More detailed example
+## Development
 
-For a more detailed and accessible example, see [```./doc/vaeda_scanpy-pbmc3k-tutorial.ipynb```](https://github.com/kostkalab/vaeda/blob/main/doc/vaeda_scanpy-pbmc3k-tutorial.ipynb), where we modified a tutorial from ```scanpy``` [(https://scanpy-tutorials.readthedocs.io/en/latest/pbmc3k.html)](https://scanpy-tutorials.readthedocs.io/en/latest/pbmc3k.html) to illustrate how to use ```vaeda``` for doublet annotation.
+### Setup
 
+Clone the repository and install with development dependencies:
 
-#### Other doublet detection tools
+```bash
+git clone https://github.com/lukabor/vaeda.git
+cd vaeda
 
-* [scds](https://github.com/kostkalab/scds)
-* [scDblFInder](https://github.com/plger/scDblFinder)
-* [DoubletFinder](https://github.com/chris-mcginnis-ucsf/DoubletFinder)
-* [Scrublet](https://github.com/AllonKleinLab/scrublet)
-* [solo](https://github.com/calico/Solo)
+# Install all dependencies including dev group (uses uv.lock for reproducibility)
+uv sync
+
+# Or install with specific dependency group
+uv sync --group dev
+```
+
+### Makefile Commands
+
+Common development tasks are available via Makefile:
+
+```bash
+make build    # Build the Docker container
+make test     # Run tests
+make lint     # Run linting
+make format   # Format code
+make shell    # Start development shell in container
+```
+
+### Running Tests
+
+```bash
+# Using Make (recommended)
+make test
+
+# Or manually with pytest
+uv run pytest
+
+# Run with verbose output
+uv run pytest -v
+
+# Run a specific test file
+uv run pytest tests/test_vaeda.py
+
+# Run tests with coverage
+uv run pytest --cov=vaeda
+```
+
+### Code Quality
+
+This project uses [ruff](https://docs.astral.sh/ruff/) for linting and formatting. Configuration is in `pyproject.toml` with a line length of 90 characters.
+
+```bash
+# Using Make (recommended)
+make lint     # Check for issues
+make format   # Format code
+
+# Or manually
+uv run ruff check src/
+uv run ruff check --fix src/
+uv run ruff format src/
+```
+
+### Type Checking
+
+Type checking is done with [ty](https://github.com/astral-sh/ty):
+
+```bash
+uv run ty check src/
+```
+
+### Docker Development Environment
+
+A Docker-based development environment is available for consistent, reproducible development across different machines. The Dockerfile supports both `dev` and `prod` targets.
+
+#### Building the Container
+
+```bash
+# Build the development image (recommended: use --no-cache for clean builds)
+docker compose build --no-cache dev
+
+# Or build the production image
+docker compose build --no-cache prod
+```
+
+#### Running the Container
+
+```bash
+# Start the development container
+docker compose up dev
+
+# Or start the production container
+docker compose up prod
+
+# Run in detached mode
+docker compose up -d dev
+```
+
+#### Accessing the Container
+
+```bash
+# Execute a shell in the running container
+docker compose exec dev bash
+```
+
+#### Remote Development with distant.nvim
+
+For neovim users, the container supports [distant.nvim](https://github.com/chipsenkbeil/distant.nvim) for seamless remote editing:
+
+```bash
+# Start the container with distant server
+docker compose up -d dev
+
+# Connect from neovim using distant.nvim on port 8080
+```
+
+This allows you to use your local neovim configuration while executing commands inside the container.
+
+## Project Structure
+
+```
+vaeda/
+├── src/vaeda/
+│   ├── __init__.py      # Package exports
+│   ├── vaeda.py         # Main vaeda function
+│   ├── vae.py           # VAE model definition
+│   ├── pu.py            # PU learning implementation
+│   ├── classifier.py    # Neural network classifier
+│   ├── cluster.py       # Clustering utilities
+│   ├── mk_doublets.py   # Synthetic doublet generation
+│   └── logger.py        # Logging configuration
+├── tests/               # Test suite
+├── doc/                 # Documentation and tutorials
+├── pyproject.toml       # Project configuration (includes ruff config)
+├── Dockerfile           # Container definition (dev and prod targets)
+├── docker-compose.yml   # Container orchestration
+├── Makefile             # Development shortcuts
+└── uv.lock              # Locked dependencies
+```
+
+## API Reference
+
+### `vaeda.vaeda()`
+
+Main function for doublet annotation.
+
+**Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `adata` | `AnnData` | required | Annotated data matrix with raw counts in `adata.X` |
+| `layer` | `str \| None` | `None` | Use `adata.layers[layer]` instead of `adata.X` |
+| `filter_genes` | `bool` | `True` | Select 2000 most variable genes |
+| `verbose` | `int` | `0` | Verbosity level (0, 1, or 2) |
+| `gene_thresh` | `float` | `0.01` | Filter genes expressed in ≤ threshold × cells |
+| `num_hvgs` | `int` | `2000` | Number of highly variable genes to use |
+| `pca_comp` | `int` | `30` | Number of principal components |
+| `enc_sze` | `int` | `5` | Size of VAE encoding |
+| `seed` | `int \| None` | `None` | Random seed for reproducibility |
+
+**Returns:** `AnnData` with added fields:
+- `adata.obsm['vaeda_embedding']`: VAE encoding for cells
+- `adata.obs['vaeda_scores']`: Doublet probability scores
+- `adata.obs['vaeda_calls']`: Binary doublet/singlet calls
+
+## Other Doublet Detection Tools
+
+- [scds](https://github.com/kostkalab/scds) - Computational doublet detection for scRNA-seq (R)
+- [scDblFinder](https://github.com/plger/scDblFinder) - Fast doublet detection in R
+- [DoubletFinder](https://github.com/chris-mcginnis-ucsf/DoubletFinder) - R package for doublet detection
+- [Scrublet](https://github.com/AllonKleinLab/scrublet) - Python tool for detecting doublets
+- [Solo](https://github.com/calico/Solo) - Deep learning approach to doublet detection
+
+## Citation
+
+If you use vaeda in your research, please cite:
+
+```bibtex
+@article{schriever2022vaeda,
+  title={vaeda: a computational framework for detection of doublets in single-cell RNA sequencing data using variational autoencoders},
+  author={Schriever, Hannah and Kostka, Dennis},
+  journal={Bioinformatics},
+  volume={39},
+  number={1},
+  pages={btac720},
+  year={2023},
+  publisher={Oxford University Press}
+}
+```
+
+## License
+
+MIT

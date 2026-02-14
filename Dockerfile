@@ -61,7 +61,7 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 ENV PATH="/opt/venv/bin:$PATH"
 
 ENTRYPOINT []
-CMD ["python", "-c", "import vaeda; print(f'vaeda {vaeda.__version__} ready')"]
+CMD ["sh", "-c", "python -c \"import vaeda; print(f'vaeda prod ready')\" && sleep infinity"]
 
 # -----------------------------------------------------------------------------
 # Development stage: core + dev dependencies 
@@ -96,5 +96,5 @@ ENV PATH="/root/.distant/bin:/opt/venv/bin:$PATH" \
 EXPOSE 80
 
 ENTRYPOINT []
-CMD ["python", "-c", "import vaeda; print(f'vaeda {vaeda.__version__} ready')"]
+CMD ["sh", "-c", "python -c \"import vaeda; print(f'vaeda dev ready')\" && sleep infinity"]
 
