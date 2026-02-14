@@ -65,6 +65,7 @@ dev = [
     "pre-commit>=4.1",
     "ty>=0.0.1a21",
     "ipython>=9.10.0",
+    "requests>=2.32.5",
 ]
 
 # Documentation (optional, extend as needed)
