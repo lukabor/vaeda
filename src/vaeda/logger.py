@@ -61,8 +61,7 @@ def init_logger(
             ),
             level=log_level,
             format=(
-                "{time:YYYY-MM-DD HH:mm:ss}|{level}"
-                "|{name}:{function}:{line} - {message}"
+                "{time:YYYY-MM-DD HH:mm:ss}|{level}|{name}:{function}:{line} - {message}"
             ),
             filter="dsd",
             backtrace=True,

@@ -206,9 +206,7 @@ def vaeda(
     knn = NearestNeighbors(n_neighbors=neighbors)
     knn.fit(pca_proj, Y)
     graph = knn.kneighbors_graph(pca_proj)
-    knn_feature = np.squeeze(
-        np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
-    )
+    knn_feature = np.squeeze(np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors))
 
     # Estimate true fraction of doublets
     quantile = np.quantile(knn_feature[Y == 1], quant)
@@ -218,9 +216,7 @@ def vaeda(
 
     prob = knn_feature[Y == 1] / np.sum(knn_feature[Y == 1])
     rng3 = np.random.Generator(np.random.PCG64(seeds[3]))
-    ind = rng3.choice(
-        np.arange(sum(Y == 1)), size=num, p=prob, replace=False
-    )
+    ind = rng3.choice(np.arange(sum(Y == 1)), size=num, p=prob, replace=False)
 
     # Down-sample simulated doublets
     enc_ind = np.concatenate([
@@ -303,18 +299,10 @@ def vaeda(
         )
         device = _get_device()
 
-        X_train_t = torch.tensor(
-            X_train, dtype=torch.float32, device=device
-        )
-        X_test_t = torch.tensor(
-            X_test, dtype=torch.float32, device=device
-        )
-        clust_train_t = torch.tensor(
-            clust_train_oh, dtype=torch.float32, device=device
-        )
-        clust_test_t = torch.tensor(
-            clust_test_oh, dtype=torch.float32, device=device
-        )
+        X_train_t = torch.tensor(X_train, dtype=torch.float32, device=device)
+        X_test_t = torch.tensor(X_test, dtype=torch.float32, device=device)
+        clust_train_t = torch.tensor(clust_train_oh, dtype=torch.float32, device=device)
+        clust_test_t = torch.tensor(clust_test_oh, dtype=torch.float32, device=device)
 
         # Learning-rate scheduler (exponential decay after epoch 3)
         def lr_lambda(epoch: int) -> float:
@@ -347,9 +335,7 @@ def vaeda(
                 c_batch = clust_train_t[idx]
 
                 optimiser.zero_grad()
-                recon_mu, recon_logvar, clust_pred, _, enc_mu, enc_logvar = vae(
-                    x_batch
-                )
+                recon_mu, recon_logvar, clust_pred, _, enc_mu, enc_logvar = vae(x_batch)
                 batch_loss, _, _ = vae.loss(
                     x_batch,
                     recon_mu,
@@ -396,16 +382,12 @@ def vaeda(
                 patience_counter += 1
                 if patience_counter >= pat_vae:
                     if verbose != 0:
-                        logger.info(
-                            f"VAE early stopping at epoch {epoch}"
-                        )
+                        logger.info(f"VAE early stopping at epoch {epoch}")
                     break
 
         # Extract encodings
         vae.eval()
-        x_mat_t = torch.tensor(
-            x_mat, dtype=torch.float32, device=device
-        )
+        x_mat_t = torch.tensor(x_mat, dtype=torch.float32, device=device)
         with torch.no_grad():
             torch.manual_seed(seeds[7])
             z, _, _ = vae.encoder(x_mat_t)
@@ -417,12 +399,8 @@ def vaeda(
 
     # ---- PU learning ----
     if save_dir is not None:
-        np.save(
-            save_dir / "knn_feature_real.npy", knn_feature[Y == 0]
-        )
-        np.save(
-            save_dir / "knn_feature_sim.npy", knn_feature[Y == 1]
-        )
+        np.save(save_dir / "knn_feature_real.npy", knn_feature[Y == 0])
+        np.save(save_dir / "knn_feature_sim.npy", knn_feature[Y == 1])
         np.save(save_dir / "clusters_real.npy", clust[Y == 0])
         np.save(save_dir / "clusters_sim.npy", clust[Y == 1])
 
@@ -455,9 +433,7 @@ def vaeda(
     y = yhat
     x = np.arange(len(y))
 
-    kneedle = KneeLocator(
-        x, y, S=10, curve="convex", direction="decreasing"
-    )
+    kneedle = KneeLocator(x, y, S=10, curve="convex", direction="decreasing")
     knee = kneedle.knee
 
     if knee is None:
@@ -516,9 +492,7 @@ def vaeda(
         o_t = np.sum(preds >= thresh)
         fnr.append(np.sum(preds_on_p < thresh) / len(preds_on_p))
         fpr.append(o_t / len(preds))
-        nll_doub.append(
-            -(_log_norm(o_t, dbl_expected, dbr_sd) / norm_factor)
-        )
+        nll_doub.append(-(_log_norm(o_t, dbl_expected, dbr_sd) / norm_factor))
 
     cost = np.array(fnr) + np.array(fpr) + np.array(nll_doub) ** 2
 
@@ -539,9 +513,7 @@ def vaeda(
     return adata
 
 
-def _log_norm(
-    x: float, mean: float, sd: float
-) -> float:
+def _log_norm(x: float, mean: float, sd: float) -> float:
     t1 = -np.log(sd * np.sqrt(2 * math.pi))
     t2 = (-0.5) * ((x - mean) / sd) ** 2
     return t1 + t2

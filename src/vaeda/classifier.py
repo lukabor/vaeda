@@ -43,9 +43,7 @@ class BinaryClassifier(nn.Module):
         return self.net(x).squeeze(-1)
 
 
-def define_classifier(
-    ngens: int, num_layers: int = 1
-) -> BinaryClassifier:
+def define_classifier(ngens: int, num_layers: int = 1) -> BinaryClassifier:
     """Build a binary classifier and return it.
 
     The model is placed on the best available device (CUDA > MPS > CPU).

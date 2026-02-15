@@ -31,9 +31,7 @@ class Encoder(nn.Module):
             nn.init.xavier_uniform_(m.weight)
             nn.init.zeros_(m.bias)
 
-    def forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Return (z_sample, mu, logvar)."""
         h = F.relu(self.fc1(x))
         h = self.bn1(h)
@@ -67,9 +65,7 @@ class Decoder(nn.Module):
             nn.init.xavier_uniform_(m.weight)
             nn.init.zeros_(m.bias)
 
-    def forward(
-        self, z: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(self, z: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Return (recon_mu, recon_logvar)."""
         h = F.relu(self.fc1(z))
         h = self.bn1(h)
@@ -168,9 +164,7 @@ class ClustVAE(nn.Module):
         # Reconstruction NLL (Gaussian): sum over features, mean over
         # batch — matches TFP's nll = -reduce_sum(log_prob, axis=-1)
         # averaged by Keras over the batch.
-        recon_dist = Independent(
-            Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1
-        )
+        recon_dist = Independent(Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1)
         # log_prob already sums over features (Independent, dim=1)
         nll = -recon_dist.log_prob(x).mean()
 
@@ -178,14 +172,10 @@ class ClustVAE(nn.Module):
         # This matches TFP KLDivergenceRegularizer which computes
         # per-sample KL and adds it to the layer's activity
         # regularisation losses (then Keras averages over batch).
-        kl = -0.5 * torch.sum(
-            1 + logvar - mu.pow(2) - logvar.exp(), dim=-1
-        ).mean()
+        kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1).mean()
 
         # Cluster classification loss (categorical cross-entropy)
-        clust_loss = F.binary_cross_entropy(
-            clust_pred, clust_target, reduction="mean"
-        )
+        clust_loss = F.binary_cross_entropy(clust_pred, clust_target, reduction="mean")
 
         total = nll + kl + self.clust_weight * clust_loss
         return total, nll, kl
@@ -219,13 +209,9 @@ class SimpleVAE(nn.Module):
         logvar: torch.Tensor,
     ) -> torch.Tensor:
         recon_logvar = recon_logvar.clamp(-20, 20)
-        recon_dist = Independent(
-            Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1
-        )
+        recon_dist = Independent(Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1)
         nll = -recon_dist.log_prob(x).mean()
-        kl = -0.5 * torch.sum(
-            1 + logvar - mu.pow(2) - logvar.exp(), dim=-1
-        ).mean()
+        kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1).mean()
         return nll + kl
 
 
@@ -254,9 +240,7 @@ def define_clust_vae(
     return model, optimiser
 
 
-def define_vae(
-    enc_sze: int, ngens: int
-) -> tuple[SimpleVAE, torch.optim.Optimizer]:
+def define_vae(enc_sze: int, ngens: int) -> tuple[SimpleVAE, torch.optim.Optimizer]:
     """Build a SimpleVAE model and its Adamax optimiser."""
     device = _get_device()
     model = SimpleVAE(ngens, enc_sze).to(device)
