@@ -4,6 +4,27 @@ vaeda (variational auto-encoder for doublet annotation) is a Python package for 
 
 **v0.2.0** — Now powered by **PyTorch** (replacing TensorFlow). Public API unchanged.
 
+## Table of Contents
+
+- [Requirements](#requirements)
+- [Installation](#installation)
+  - [Using uv (Recommended)](#using-uv-recommended)
+  - [Using pip](#using-pip)
+  - [Using conda](#using-conda-not-recommended)
+- [Quick Start](#quick-start)
+- [Development](#development)
+  - [Setup](#setup)
+  - [Makefile Commands](#makefile-commands)
+  - [Running Tests](#running-tests)
+  - [Code Quality](#code-quality)
+  - [Type Checking](#type-checking)
+  - [Docker Development Environment](#docker-development-environment)
+- [Project Structure](#project-structure)
+- [API Reference](#api-reference)
+- [Other Doublet Detection Tools](#other-doublet-detection-tools)
+- [Citation](#citation)
+- [License](#license)
+
 ## Requirements
 
 - Python 3.12+
