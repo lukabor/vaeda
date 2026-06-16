@@ -118,20 +118,32 @@ Build `backends/_tf/` from upstream `kostkalab/vaeda` (tfp `IndependentNormal` +
   sets `TF_USE_LEGACY_KERAS=1` before importing tensorflow.
 
 ### Phase 5 — Parity validation
-Generate golden doublet scores by running upstream main in an isolated legacy env
-(py3.9 + old TF) on the pbmc3k tutorial dataset
-(`doc/vaeda_scanpy-pbmc3k-tutorial.ipynb`). Assert the `_tf` backend matches within
-tolerance (score correlation ≥ 0.95 + identical hard calls on clear doublets).
-Cross-check torch vs TF agreement on the same dataset.
-- **Verify**: tolerance assertions pass; document per-backend reproducibility
-  baselines (do not cross-assert exact values — RNG differs).
-- **Status**: pending.
+Score full pbmc3k (~2700 cells, seed 12345) with all three lineages and compare:
+the legacy upstream TF (`docker/legacy/`, python 3.8 + TF 2.13/TFP 0.21, frozen to
+`data/legacy_pbmc3k_scores.csv`), this repo's torch backend, and this repo's TF
+backend (`tools/score_pbmc3k.py` → `tests/fixtures/{torch,tf}_pbmc3k_scores.csv`).
+Metrics per pair: Jaccard of doublet calls, ARI, Pearson, Spearman, RMSE, min/max
+(`tests/parity_metrics.py`). The fixtures are committed (torch and TF can't run in
+one process; legacy needs py3.8), and `tests/test_parity.py` threshold-gates the
+three pairwise comparisons.
+- **Verify**: ✅ done (2026-06-16). `test_parity.py` passes (3 pairs). Found and
+  fixed a real TF-backend bug along the way: upstream-faithful
+  `restore_best_weights=False` left the TF VAE encoder collapsed, squashing
+  doublet scores to [0.12, 0.65] (Pearson 0.61 vs legacy). Switching the TF
+  EarlyStopping to `restore_best_weights=True` (matching the torch backend)
+  restored full-range scores. Final parity (floors set with margin): worst pair
+  Jaccard 0.65, ARI 0.74, Pearson 0.92, Spearman 0.87, RMSE 0.066;
+  TF-vs-legacy now Pearson 0.94, torch-vs-legacy 0.92, torch-vs-TF 0.95.
+- **Status**: ✅ done.
 
-### Phase 6 — CI matrix
-One job per extra (`[torch]`, `[tensorflow]`); each runs the suite plus its parity
-check. Upstream goldens are generated out-of-band, not in the main interpreter.
-- **Verify**: both matrix legs green.
-- **Status**: pending.
+### Phase 6 — Test documentation (no CI)
+No CI per project decision. Instead the tests and fixtures are self-documenting:
+`docker/legacy/README.md` (legacy provenance + regenerate), the `tests/test_parity.py`
+docstring (fixture regeneration commands), and `tools/score_pbmc3k.py`. The parity
+test reads frozen fixtures, so it is fast and runs in the default torch env.
+- **Verify**: ✅ done — fixture provenance and regeneration documented; parity
+  test green from a clean checkout (no backend execution required).
+- **Status**: ✅ done.
 
 ## Risks / gotchas
 

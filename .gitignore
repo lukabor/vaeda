@@ -1,6 +1,7 @@
 test.py
-data
 data/*
+# but keep the committed parity fixture (see docker/legacy/)
+!data/legacy_pbmc3k_scores.csv
 dist
 vaeda.egg-info
 build
