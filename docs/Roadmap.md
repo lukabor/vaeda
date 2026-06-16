@@ -145,6 +145,40 @@ test reads frozen fixtures, so it is fast and runs in the default torch env.
   test green from a clean checkout (no backend execution required).
 - **Status**: ✅ done.
 
+### Phase 7 — Seed-stability of doublet calls
+Measure how much doublet calls/scores move when only the seed changes (same data,
+same backend) — a different axis from parity (cross-lineage) — for all three
+lineages on full pbmc3k across **seeds 0–49** (50 runs each).
+
+Fixtures / recompute (per the Phase 1–6 split: torch and TF cannot run compute in
+one process; legacy needs py3.8):
+- **legacy** → frozen fixture, 50 seeds × ~2700 cells, **calls + scores** (extend
+  `docker/legacy/` to loop the seeds; one-time container run, ~50× legacy runtime).
+- **torch / TF** → recomputed live, each in its own env, into transient
+  (gitignored) matrices.
+
+Metrics (per backend; pure functions, BDD'd first — extend `tests/parity_metrics.py`
+or a new `tests/stability_metrics.py`):
+- **Calls**: per-cell call frequency `f_i` + flip rate (`0<f_i<1`); Fleiss' κ over
+  the 50 binary verdicts; mean pairwise ARI + Jaccard (± sd) across run pairs;
+  doublet-count per run mean ± sd + CV.
+- **Scores**: per-cell score sd / CV; ICC; mean pairwise Spearman/Pearson.
+- **Threshold**: per-seed cutoff `t` is *derived* from (scores, calls) — calls are
+  `score > t`, so `max(score|singlet) < t ≤ min(score|doublet)`; take the bracket
+  midpoint per seed and report its spread. No vaeda change needed.
+- **Cross-backend table**: the above per backend side by side (which lineage is
+  most stable). Built by a compare step that loads the legacy fixture + the torch
+  and TF transient matrices (not a single pytest invocation — torch/TF live in
+  different envs).
+
+- **Verify**: stability metrics computed for all three; within-backend stability
+  test runs per-env (slow/integration, live recompute); metrics functions unit-
+  tested with hand-checked cases. Decide pass/report posture once the first
+  numbers exist (as in Phase 5).
+- **Risk**: 50 full pipelines × torch + × TF (~1–2 h each, background) + legacy
+  50× one-time in-container. RNG seeding must actually vary per run (vaeda `seed`).
+- **Status**: pending.
+
 ## Risks / gotchas
 
 - Phase 1 is the bulk of the work and the only step that can silently change
