@@ -88,7 +88,7 @@ class TestBatchSlices:
         When slices are computed
         Then each batch is full and none has length 1
         """
-        from vaeda.pu import _batch_slices
+        from vaeda.backends._torch.train import _batch_slices
 
         assert _batch_slices(64, 32) == [(0, 32), (32, 64)]
 
@@ -98,7 +98,7 @@ class TestBatchSlices:
         When slices are computed
         Then the singleton is merged into the previous batch
         """
-        from vaeda.pu import _batch_slices
+        from vaeda.backends._torch.train import _batch_slices
 
         slices = _batch_slices(33, 32)
         assert all(end - start > 1 for start, end in slices)
@@ -112,8 +112,8 @@ class TestBatchSlices:
         When a single epoch is trained
         Then BatchNorm does not raise on the singleton batch
         """
-        from vaeda.classifier import define_classifier
-        from vaeda.pu import _train_one_epoch
+        from vaeda.backends._torch.classifier import define_classifier
+        from vaeda.backends._torch.train import _train_one_epoch
 
         torch.manual_seed(0)
         n = 33  # 33 % 32 == 1
@@ -137,7 +137,7 @@ class TestClusterHeadIsCategorical:
         Then it emits raw logits (softmax sums to 1, values may be negative),
              not independent per-class sigmoid probabilities in (0, 1)
         """
-        from vaeda.vae import ClustClassifier
+        from vaeda.backends._torch.vae import ClustClassifier
 
         torch.manual_seed(0)
         head = ClustClassifier(n_latent=4, n_clusters=3)
@@ -155,7 +155,7 @@ class TestClusterHeadIsCategorical:
         Then the correct prediction yields a strictly lower loss
              (categorical CE accepts logits that BCE-on-sigmoid could not)
         """
-        from vaeda.vae import ClustVAE
+        from vaeda.backends._torch.vae import ClustVAE
 
         vae = ClustVAE(n_input=4, n_latent=2, n_clusters=3)
         x = torch.randn(5, 4)
@@ -222,7 +222,7 @@ class TestEarlyStopper:
         When the model is stepped through each epoch and restored at the end
         Then the model holds the weights from the lowest-loss epoch
         """
-        from vaeda.vae import _EarlyStopper
+        from vaeda.backends._torch.vae import _EarlyStopper
 
         model = torch.nn.Linear(1, 1)
         stopper = _EarlyStopper(patience=2)
@@ -245,7 +245,7 @@ class TestEarlyStopper:
         When patience worse epochs elapse
         Then step reports that training should stop
         """
-        from vaeda.vae import _EarlyStopper
+        from vaeda.backends._torch.vae import _EarlyStopper
 
         model = torch.nn.Linear(1, 1)
         stopper = _EarlyStopper(patience=2)

@@ -13,7 +13,6 @@ import anndata as ad
 import numpy as np
 import numpy.typing as npt
 import scipy.sparse as scs
-import torch
 from kneed import KneeLocator
 from loguru import logger
 from scipy.signal import savgol_filter
@@ -23,11 +22,11 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
+from .backends._torch.train import train_clust_vae
 from .cluster import cluster, fast_cluster
 from .logger import init_logger
 from .mk_doublets import sim_inflate
-from .pu import PU, _batch_slices, epoch_PU
-from .vae import _EarlyStopper, _get_device, define_clust_vae
+from .pu import PU, epoch_PU
 
 
 def vaeda(
@@ -257,8 +256,6 @@ def vaeda(
     clust_train_oh = np.eye(n_clust)[clust_train.astype(int)]
     clust_test_oh = np.eye(n_clust)[clust_test.astype(int)]
 
-    ngens = x_mat.shape[1]
-
     old_vae = False
     if save_dir is not None:
         vae_path_real = save_dir / "embedding_real.npy"
@@ -276,105 +273,22 @@ def vaeda(
         if verbose != 0:
             logger.info("generating VAE encoding")
 
-        torch.manual_seed(seeds[6])
-        vae, optimiser = define_clust_vae(
-            enc_sze,
-            ngens,
-            n_clust,
-            LR=LR_vae,
+        encoding = train_clust_vae(
+            x_mat,
+            X_train,
+            X_test,
+            clust_train_oh,
+            clust_test_oh,
+            enc_sze=enc_sze,
+            num_clust=n_clust,
+            lr=LR_vae,
             clust_weight=clust_weight,
+            rate=rate,
+            patience=pat_vae,
+            max_epochs=max_eps_vae,
+            seeds=seeds,
+            verbose=verbose,
         )
-        device = _get_device()
-
-        X_train_t = torch.tensor(X_train, dtype=torch.float32, device=device)
-        X_test_t = torch.tensor(X_test, dtype=torch.float32, device=device)
-        clust_train_t = torch.tensor(clust_train_oh, dtype=torch.float32, device=device)
-        clust_test_t = torch.tensor(clust_test_oh, dtype=torch.float32, device=device)
-
-        # Learning-rate scheduler (exponential decay after epoch 3)
-        def lr_lambda(epoch: int) -> float:
-            if epoch < 3:
-                return 1.0
-            return float(np.exp(rate))
-
-        scheduler = torch.optim.lr_scheduler.MultiplicativeLR(
-            optimiser, lr_lambda=lr_lambda
-        )
-
-        # Early stopping (snapshots the best-validation-loss weights)
-        stopper = _EarlyStopper(patience=pat_vae)
-        batch_size = 32  # Keras default
-
-        for epoch in range(max_eps_vae):
-            # Train step (minibatch, matching Keras default batch_size=32)
-            vae.train()
-            n_train = X_train_t.shape[0]
-            # Shuffle training data each epoch
-            perm = torch.randperm(n_train, device=device)
-            epoch_loss = 0.0
-            n_batches = 0
-
-            for start, end in _batch_slices(n_train, batch_size):
-                idx = perm[start:end]
-                x_batch = X_train_t[idx]
-                c_batch = clust_train_t[idx]
-
-                optimiser.zero_grad()
-                recon_mu, recon_logvar, clust_pred, _, enc_mu, enc_logvar = vae(x_batch)
-                batch_loss, _, _ = vae.loss(
-                    x_batch,
-                    recon_mu,
-                    recon_logvar,
-                    enc_mu,
-                    enc_logvar,
-                    clust_pred,
-                    c_batch,
-                )
-                batch_loss.backward()
-                optimiser.step()
-                epoch_loss += batch_loss.item()
-                n_batches += 1
-
-            scheduler.step()
-
-            # Validation step
-            vae.eval()
-            with torch.no_grad():
-                (
-                    v_recon_mu,
-                    v_recon_logvar,
-                    v_clust_pred,
-                    _,
-                    v_enc_mu,
-                    v_enc_logvar,
-                ) = vae(X_test_t)
-                val_loss, _, _ = vae.loss(
-                    X_test_t,
-                    v_recon_mu,
-                    v_recon_logvar,
-                    v_enc_mu,
-                    v_enc_logvar,
-                    v_clust_pred,
-                    clust_test_t,
-                )
-                val_loss_val = val_loss.item()
-
-            # Early stopping check (snapshots best weights internally)
-            if stopper.step(val_loss_val, vae):
-                if verbose != 0:
-                    logger.info(f"VAE early stopping at epoch {epoch}")
-                break
-
-        # Restore the best-validation-loss weights before encoding
-        stopper.restore(vae)
-
-        # Extract encodings
-        vae.eval()
-        x_mat_t = torch.tensor(x_mat, dtype=torch.float32, device=device)
-        with torch.no_grad():
-            torch.manual_seed(seeds[7])
-            z, _, _ = vae.encoder(x_mat_t)
-            encoding = z.detach().cpu().numpy()
 
         if save_dir is not None:
             np.save(vae_path_real, encoding[Y == 0, :])
