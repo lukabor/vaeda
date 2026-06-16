@@ -45,13 +45,17 @@ def train_clust_vae(
         enc_sze, x_mat.shape[1], num_clust, LR=lr, clust_weight=clust_weight
     )
 
+    # restore_best_weights=True (unlike upstream's False) so the encoding comes
+    # from the best-validation epoch rather than a degraded post-plateau one —
+    # mirrors the torch backend (commit 3a1e320). Upstream's False left the TF
+    # encoding collapsed toward the prior, wrecking doublet separation.
     early_stopping = tfk.callbacks.EarlyStopping(
         monitor="val_loss",
         mode="min",
         min_delta=0,
         patience=patience,
         verbose=0,
-        restore_best_weights=False,
+        restore_best_weights=True,
     )
 
     def scheduler(epoch: int, current_lr: float) -> float:
