@@ -223,10 +223,11 @@ def vaeda(
     x_mat = scaler.transform(x_mat.T).T
 
     # ---- Clustering ----
+    clust_seed = int(seeds[0])
     if x_mat.shape[0] >= 1000:
-        clust = fast_cluster(x_mat, comp=pca_comp)
+        clust = fast_cluster(x_mat, comp=pca_comp, random_state=clust_seed)
     else:
-        clust = cluster(x_mat, comp=pca_comp)
+        clust = cluster(x_mat, comp=pca_comp, random_state=clust_seed)
 
     if remove_homos:
         c = clust[Y == 0]

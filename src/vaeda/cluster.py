@@ -5,30 +5,30 @@ from sklearn.cluster import MiniBatchKMeans
 from sklearn.decomposition import PCA
 
 
-def cluster(X, comp=20):
+def cluster(X, comp=20, random_state=0):
     adata = anndata.AnnData(X=X)
     adata.var_names_make_unique()
 
-    sc.tl.pca(adata, svd_solver="arpack")
+    sc.tl.pca(adata, svd_solver="arpack", random_state=random_state)
     n = int(np.sqrt(X.shape[0]))
 
-    sc.pp.neighbors(adata, n_neighbors=n, n_pcs=comp)
-    sc.tl.leiden(adata)
+    sc.pp.neighbors(adata, n_neighbors=n, n_pcs=comp, random_state=random_state)
+    sc.tl.leiden(adata, random_state=random_state, flavor="leidenalg")
 
     clust = np.array(adata.obs["leiden"]).astype(int)
 
     return clust
 
 
-def fast_cluster(X, comp=20):
-    pca = PCA(n_components=comp, random_state=42)
+def fast_cluster(X, comp=20, random_state=0):
+    pca = PCA(n_components=comp, random_state=random_state)
     pca_proj = pca.fit_transform(X)
 
     n_clusters = int(X.shape[0] * 0.1)
 
     kmeans = MiniBatchKMeans(
         n_clusters=n_clusters,
-        random_state=0,
+        random_state=random_state,
         batch_size=1024,
         max_iter=20,
     ).fit(pca_proj)
@@ -42,11 +42,11 @@ def fast_cluster(X, comp=20):
     adata = anndata.AnnData(X=meta_cells)
     adata.var_names_make_unique()
 
-    sc.tl.pca(adata, svd_solver="arpack", random_state=0)
+    sc.tl.pca(adata, svd_solver="arpack", random_state=random_state)
     n = int(np.sqrt(meta_cells.shape[0]))
 
-    sc.pp.neighbors(adata, n_neighbors=n, n_pcs=comp, random_state=0)
-    sc.tl.leiden(adata, random_state=0)
+    sc.pp.neighbors(adata, n_neighbors=n, n_pcs=comp, random_state=random_state)
+    sc.tl.leiden(adata, random_state=random_state, flavor="leidenalg")
 
     clust_meta = np.array(adata.obs["leiden"]).astype(int)
 

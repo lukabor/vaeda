@@ -253,3 +253,25 @@ class TestEarlyStopper:
         assert stopper.step(2.0, model) is False  # improvement
         assert stopper.step(3.0, model) is False  # worse 1/2
         assert stopper.step(3.0, model) is True  # worse 2/2 -> stop
+
+
+class TestClusterReproducibility:
+    """cluster: a fixed random_state yields identical labels across runs."""
+
+    def test_same_seed_gives_identical_labels(self):
+        """
+        Given the same expression matrix and random_state
+        When cluster() is run twice
+        Then both runs return identical cluster labels
+        """
+        from vaeda.cluster import cluster
+
+        rng = np.random.default_rng(0)
+        blob_a = rng.normal(0.0, 1.0, size=(40, 20))
+        blob_b = rng.normal(8.0, 1.0, size=(40, 20))
+        x = np.vstack([blob_a, blob_b]).astype(np.float32)
+
+        first = cluster(x, random_state=0)
+        second = cluster(x, random_state=0)
+
+        assert np.array_equal(first, second)
