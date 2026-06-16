@@ -16,6 +16,40 @@ from .classifier import define_classifier
 from .vae import _get_device
 
 
+def _batch_slices(n: int, batch_size: int) -> list[tuple[int, int]]:
+    """Return ``(start, end)`` minibatch bounds covering ``[0, n)``.
+
+    A trailing batch of length 1 is merged into the previous batch so that
+    ``BatchNorm1d`` never receives a single-sample batch during training
+    (which raises "Expected more than 1 value per channel"). The only
+    unavoidable singleton is the degenerate ``n == 1`` case.
+    """
+    slices = [(start, min(start + batch_size, n)) for start in range(0, n, batch_size)]
+    if len(slices) >= 2 and slices[-1][1] - slices[-1][0] == 1:
+        prev_start, _ = slices[-2]
+        slices[-2] = (prev_start, slices[-1][1])
+        slices.pop()
+    return slices
+
+
+def _normalize_pu_preds(
+    preds_sum: np.ndarray,
+    preds_on_p_sum: np.ndarray,
+    i: int,
+    k: int,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Average accumulated PU bagging scores.
+
+    Each unlabeled point is scored on the held-in partition ``(k-1)`` times
+    per repeat, i.e. ``i/k * (k-1)`` times total. Each positive point is
+    scored on every one of the ``i`` folds, so it must divide by ``i`` (not
+    ``i/k * (k-1)``) to stay on the same [0, 1] scale as ``preds``.
+    """
+    preds = preds_sum / ((i / k) * (k - 1))
+    preds_on_p = preds_on_p_sum / i
+    return preds, preds_on_p
+
+
 def _train_one_epoch(
     model: torch.nn.Module,
     optimiser: torch.optim.Optimizer,
@@ -31,8 +65,7 @@ def _train_one_epoch(
     total_loss = 0.0
     n_batches = 0
 
-    for start in range(0, n, batch_size):
-        end = min(start + batch_size, n)
+    for start, end in _batch_slices(n, batch_size):
         idx = perm[start:end]
         x_batch = X[idx]
         y_batch = Y[idx]
@@ -163,8 +196,7 @@ def PU(
                     np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
                 )
 
-    preds = preds / ((i / k) * (k - 1))
-    preds_on_P = preds_on_P / ((i / k) * (k - 1))
+    preds, preds_on_P = _normalize_pu_preds(preds, preds_on_P, i, k)
 
     return preds, preds_on_P, hists, val_hists, auc_hists, val_auc
 

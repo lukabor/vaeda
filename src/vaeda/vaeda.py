@@ -26,7 +26,7 @@ from sklearn.preprocessing import StandardScaler
 from .cluster import cluster, fast_cluster
 from .logger import init_logger
 from .mk_doublets import sim_inflate
-from .pu import PU, epoch_PU
+from .pu import PU, _batch_slices, epoch_PU
 from .vae import _get_device, define_clust_vae
 
 
@@ -328,8 +328,7 @@ def vaeda(
             epoch_loss = 0.0
             n_batches = 0
 
-            for start in range(0, n_train, batch_size):
-                end = min(start + batch_size, n_train)
+            for start, end in _batch_slices(n_train, batch_size):
                 idx = perm[start:end]
                 x_batch = X_train_t[idx]
                 c_batch = clust_train_t[idx]
@@ -439,15 +438,7 @@ def vaeda(
     if knee is None:
         knee = len(y) // 2
 
-    match knee:
-        case knee if num < 500:
-            knee = knee + 1
-        case knee if knee < 20:
-            knee = 20
-        case knee if knee > 250:
-            knee = 250
-        case _:
-            knee = 250
+    knee = _clamp_knee(knee, num)
 
     preds, preds_on_p, *_ = PU(
         u,
@@ -511,6 +502,19 @@ def vaeda(
     adata.obsm["vaeda_embedding"] = encoding[Y == 0, :]
 
     return adata
+
+
+def _clamp_knee(knee: int, num: int) -> int:
+    """Adjust the detected elbow epoch count to the valid PU range.
+
+    Adds one epoch for small samples (``num < 500``), then bounds the result
+    to ``[20, 250]``. The detected knee is otherwise preserved — earlier code
+    used a ``match`` whose default branch wrongly forced every in-range knee
+    to 250, discarding the elbow detection.
+    """
+    if num < 500:
+        knee = knee + 1
+    return max(20, min(knee, 250))
 
 
 def _log_norm(x: float, mean: float, sd: float) -> float:
