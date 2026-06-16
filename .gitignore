@@ -16,6 +16,8 @@ dist/
 .ipynb_checkpoints/
 **/__pycache__
 .venv/
+# transient torch/TF seed-stability matrices (Phase 7); legacy lives in data/
+tests/fixtures/stability/
 .pytest_cache/
 .mypy_cache/
 htmlcov/
