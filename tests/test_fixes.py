@@ -276,6 +276,25 @@ class TestClusterReproducibility:
 
         assert np.array_equal(first, second)
 
+    def test_large_seed_does_not_overflow_leiden(self):
+        """
+        Given a random_state above the signed int32 limit (as drawn from the
+        pipeline's 0..2**32-1 seed range)
+        When cluster() runs
+        Then leiden does not raise OverflowError
+        """
+        from vaeda.cluster import cluster
+
+        rng = np.random.default_rng(1)
+        x = np.vstack([
+            rng.normal(0.0, 1.0, size=(40, 20)),
+            rng.normal(8.0, 1.0, size=(40, 20)),
+        ]).astype(np.float32)
+
+        # 4174506392 > 2**31 - 1 (the value that crashed the pipeline tests)
+        labels = cluster(x, random_state=4174506392)
+        assert len(labels) == x.shape[0]
+
 
 class TestValidateCounts:
     """vaeda._validate_counts: enforce raw-count expectations on the input."""

@@ -4,6 +4,10 @@ import scanpy as sc
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.decomposition import PCA
 
+# leidenalg seeds its RNG through a signed 32-bit integer, so a pipeline seed
+# drawn from the full 0..2**32-1 range can overflow it.
+_LEIDEN_MAX_SEED = 2**31 - 1
+
 
 def cluster(X, comp=20, random_state=0):
     adata = anndata.AnnData(X=X)
@@ -13,7 +17,7 @@ def cluster(X, comp=20, random_state=0):
     n = int(np.sqrt(X.shape[0]))
 
     sc.pp.neighbors(adata, n_neighbors=n, n_pcs=comp, random_state=random_state)
-    sc.tl.leiden(adata, random_state=random_state, flavor="leidenalg")
+    sc.tl.leiden(adata, random_state=random_state % _LEIDEN_MAX_SEED, flavor="leidenalg")
 
     clust = np.array(adata.obs["leiden"]).astype(int)
 
@@ -46,7 +50,7 @@ def fast_cluster(X, comp=20, random_state=0):
     n = int(np.sqrt(meta_cells.shape[0]))
 
     sc.pp.neighbors(adata, n_neighbors=n, n_pcs=comp, random_state=random_state)
-    sc.tl.leiden(adata, random_state=random_state, flavor="leidenalg")
+    sc.tl.leiden(adata, random_state=random_state % _LEIDEN_MAX_SEED, flavor="leidenalg")
 
     clust_meta = np.array(adata.obs["leiden"]).astype(int)
 
