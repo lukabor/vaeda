@@ -171,13 +171,36 @@ or a new `tests/stability_metrics.py`):
   and TF transient matrices (not a single pytest invocation — torch/TF live in
   different envs).
 
-- **Verify**: stability metrics computed for all three; within-backend stability
-  test runs per-env (slow/integration, live recompute); metrics functions unit-
-  tested with hand-checked cases. Decide pass/report posture once the first
-  numbers exist (as in Phase 5).
-- **Risk**: 50 full pipelines × torch + × TF (~1–2 h each, background) + legacy
-  50× one-time in-container. RNG seeding must actually vary per run (vaeda `seed`).
-- **Status**: pending.
+**Results** (full pbmc3k, seeds 0–49, `CUDA_VISIBLE_DEVICES=-1`; built by
+`tools/stability_table.py` from the legacy fixture + live torch/TF matrices):
+
+```
+backend  n_doub  ±sd   count_cv flip_rate fleiss_k jaccard  ari   score_sd  icc   thr_sd
+torch    78.5    8.51   0.1085   0.2485    0.5077   0.4157  0.4872  0.1348  0.4288 0.0461
+tf       83.6    7.22   0.0864   0.0819    0.7431   0.6092  0.7313  0.0752  0.7175 0.0464
+legacy   78.0    8.70   0.1115   0.0367    0.8400   0.7326  0.8316  0.0431  0.9062 0.0447
+```
+
+- **Stability ranking: legacy > tf > torch**, consistent across every call and
+  score metric. The torch default is the *least* seed-stable lineage — ~25% of
+  its doublet calls flip across seeds (κ 0.51, ICC 0.43) vs legacy's ~4%
+  (κ 0.84, ICC 0.91); the repo's own TF backend sits between.
+- **Doublet *count* is stable everywhere** (cv 0.09–0.11) — torch shuffles
+  *which* cells are called, not how many.
+- **Residual nondeterminism even at a fixed seed** (seed 0 gave 85 then 81
+  doublets on repeat, CUDA off): CPU-thread / unsated-RNG nondeterminism, not
+  just seed sensitivity. It is folded into the numbers above.
+
+- **Verify**: ✅ done — metrics BDD-unit-tested with hand-checked cases
+  (`tests/test_stability_metrics.py`, 17 tests); all three lineages generated
+  (50 seeds each) and tabulated. **Posture: report-only** (as Phase 5) — no
+  pass/fail gate, since a common hard threshold would fail the default torch
+  backend; the stability gap is documented here instead as a known
+  characteristic.
+- **Risk**: 50 full pipelines per backend (torch ~22 min, TF ~48 min under
+  contention, legacy ~54 min in-container — all background). RNG seeding does
+  vary per run, but is *not* the only source of call movement (see above).
+- **Status**: ✅ done.
 
 ## Risks / gotchas
 

@@ -40,6 +40,25 @@ The CSV is committed (via a `.gitignore` negation), so this only needs to run if
 the baseline is intentionally refreshed. Doublet scoring has stochastic steps;
 expect small run-to-run variation, which the parity thresholds tolerate.
 
+## The seed-stability fixture (Phase 7)
+
+`data/legacy_stability_{scores,calls}.csv.gz` — the same upstream lineage scored
+across **seeds 0–49** (one column per seed), per-cell scores *and* calls, frozen
+for the within-backend seed-stability analysis. Gzipped because the score matrix
+is high-entropy float text. Regenerate by mounting the loop generator into the
+same image (no rebuild):
+
+```bash
+docker run --rm \
+    -v "$PWD/data:/out" \
+    -v "$PWD/docker/legacy/generate_legacy_stability.py:/gen.py" \
+    vaeda-legacy python /gen.py
+```
+
+The torch and TF stability matrices are recomputed live (gitignored under
+`tests/fixtures/stability/`) via `tools/stability_pbmc3k.py`; the cross-backend
+table is built by `tools/stability_table.py`. See `docs/Roadmap.md` Phase 7.
+
 ## The other two fixtures
 
 `tests/fixtures/{torch,tf}_pbmc3k_scores.csv` are scored by the *current* repo,
