@@ -2,6 +2,9 @@ test.py
 data/*
 # but keep the committed parity fixture (see docker/legacy/)
 !data/legacy_pbmc3k_scores.csv
+# and the frozen Phase 7 seed-stability fixtures (legacy lineage, 50 seeds, gzipped)
+!data/legacy_stability_scores.csv.gz
+!data/legacy_stability_calls.csv.gz
 dist
 vaeda.egg-info
 build
