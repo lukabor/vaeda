@@ -237,3 +237,43 @@ def derive_threshold(scores: np.ndarray, calls: np.ndarray) -> float:
     max_singlet = scores[~calls].max()
     min_doublet = scores[calls].min()
     return float((max_singlet + min_doublet) / 2.0)
+
+
+def summarize(scores: np.ndarray, calls: np.ndarray) -> dict[str, float]:
+    """Collapse a backend's 50-seed matrices into one stability row.
+
+    Bundles every Phase 7 metric for a single backend so the cross-backend
+    table can place the three lineages side by side.
+
+    Args:
+        scores: Float score matrix shaped ``(n_runs, n_cells)``.
+        calls: Call matrix shaped ``(n_runs, n_cells)`` ("doublet"/"singlet"
+            strings, or any doublet-truthy encoding).
+
+    Returns:
+        Flat dict of named scalar metrics (means and spreads).
+    """
+    calls_bool = _as_doublet_bool(calls)
+    mean_jacc, sd_jacc = mean_pairwise_jaccard(calls_bool)
+    mean_ari, sd_ari = mean_pairwise_ari(calls_bool)
+
+    scores = np.asarray(scores, dtype=float)
+    thresholds = [derive_threshold(scores[i], calls_bool[i]) for i in range(scores.shape[0])]
+    thresholds = [t for t in thresholds if not np.isnan(t)]
+    counts = calls_bool.sum(axis=1)
+
+    return {
+        "flip_rate": flip_rate(calls_bool),
+        "fleiss_kappa": fleiss_kappa(calls_bool),
+        "mean_jaccard": mean_jacc,
+        "sd_jaccard": sd_jacc,
+        "mean_ari": mean_ari,
+        "sd_ari": sd_ari,
+        "doublet_count_cv": doublet_count_cv(calls_bool),
+        "mean_doublet_count": float(np.mean(counts)),
+        "sd_doublet_count": float(np.std(counts)),
+        "mean_score_sd": float(per_cell_score_sd(scores).mean()),
+        "icc": icc(scores),
+        "threshold_sd": float(np.std(thresholds)) if thresholds else float("nan"),
+        "mean_threshold": float(np.mean(thresholds)) if thresholds else float("nan"),
+    }

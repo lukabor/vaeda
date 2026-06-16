@@ -58,6 +58,36 @@ class TestProducerStringCalls:
             call_frequency(calls)
 
 
+class TestSummarize:
+    """stability_metrics.summarize: one stability row for a backend's matrices."""
+
+    def test_perfectly_stable_backend(self):
+        """
+        Given a backend whose calls and scores are identical across all runs
+        When summarize is computed
+        Then agreement metrics are perfect and spread metrics are zero
+        """
+        from stability_metrics import summarize
+
+        row = ["doublet", "singlet", "doublet", "singlet"]
+        calls = np.array([row, row, row])
+        score_row = [0.9, 0.1, 0.8, 0.2]
+        scores = np.array([score_row, score_row, score_row])
+
+        s = summarize(scores, calls)
+
+        assert s["flip_rate"] == pytest.approx(0.0)
+        assert s["fleiss_kappa"] == pytest.approx(1.0)
+        assert s["mean_jaccard"] == pytest.approx(1.0)
+        assert s["sd_jaccard"] == pytest.approx(0.0)
+        assert s["mean_ari"] == pytest.approx(1.0)
+        assert s["doublet_count_cv"] == pytest.approx(0.0)
+        assert s["mean_score_sd"] == pytest.approx(0.0)
+        assert s["icc"] == pytest.approx(1.0)
+        assert s["threshold_sd"] == pytest.approx(0.0)
+        assert s["mean_doublet_count"] == pytest.approx(2.0)
+
+
 class TestCallFrequency:
     """stability_metrics.call_frequency: per-cell fraction of runs calling doublet."""
 
