@@ -94,7 +94,11 @@ so bare install stays torch. Document the `VAEDA_BACKEND=tensorflow` selector an
 the tradeoff that a `[tensorflow]` env also carries torch.
 - **Verify**: `uv sync` resolves; `pip install -e .[tensorflow]` resolves the TF
   stack in a throwaway env.
-- **Status**: pending.
+- **Status**: ✅ done (2026-06-16). `[project.optional-dependencies]` adds `torch`
+  (alias) and `tensorflow`; torch kept in core. `uv pip install --dry-run
+  '.[tensorflow]'` resolves tensorflow 2.21 / tensorflow-probability 0.25 /
+  tf-keras 2.21 with no numpy conflict. (Note: `uv.lock` is root-owned in this
+  env and could not be regenerated — needs `sudo chown` then `uv lock`.)
 
 ### Phase 4 — TensorFlow backend
 Build `backends/_tf/` from upstream `kostkalab/vaeda` (tfp `IndependentNormal` +

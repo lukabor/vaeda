@@ -11,7 +11,9 @@ requires-python = ">=3.12"
 authors = [{ name = "Hannah Schriever", email = "hcs31@pitt.edu" }]
 license = { text = "MIT" }
 
-# Core dependencies - installed by default
+# Core dependencies - installed by default.
+# torch stays in core so a bare `pip install vaeda` ships the default backend;
+# `pip install vaeda[torch]` is therefore an explicit alias of the default.
 dependencies = [
     "anndata>=0.12.0",
     "kneed>=0.8.5",
@@ -42,6 +44,23 @@ classifiers = [
 
 [project.urls]
 repository = "https://github.com/kostkalab/vaeda"
+
+# =============================================================================
+# Optional compute backends (PEP 621 extras)
+# =============================================================================
+# Select at runtime with VAEDA_BACKEND=torch|tensorflow (see vaeda.backends).
+#   pip install vaeda               -> torch backend (default, from core deps)
+#   pip install vaeda[torch]        -> same as the bare install (explicit)
+#   pip install vaeda[tensorflow]   -> adds the TensorFlow stack alongside torch
+# Note: because torch is a core dependency, a [tensorflow] install also carries
+# torch; set VAEDA_BACKEND=tensorflow to select the TF backend.
+[project.optional-dependencies]
+torch = ["torch>=2.6.0"]
+tensorflow = [
+    "tensorflow>=2.20.0",
+    "tensorflow-probability[tf]>=0.25.0",
+    "tf-keras>=2.20.0",
+]
 
 # =============================================================================
 # Dependency Groups (PEP 735 - supported by uv)
