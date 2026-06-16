@@ -179,11 +179,7 @@ def vaeda(
             x_mat = x_mat[:, np.ravel(tmp)]
 
         if x_mat.shape[1] > num_hvgs:
-            var = np.var(x_mat, axis=0)
-            rng0 = np.random.Generator(  # noqa: F841
-                np.random.PCG64(seeds[0])
-            )
-            hvgs = np.argpartition(var, -num_hvgs)[-num_hvgs:]
+            hvgs = _top_variable_genes(x_mat, num_hvgs)
             x_mat = x_mat[:, hvgs]
 
     # ---- KNN features ----
@@ -193,16 +189,10 @@ def vaeda(
     scaler = StandardScaler().fit(temp_X.T)
     temp_X = scaler.transform(temp_X.T).T
 
-    rng1 = np.random.Generator(  # noqa: F841
-        np.random.PCG64(seeds[1])
-    )
     pca = PCA(n_components=pca_comp)
     pca_proj = pca.fit_transform(temp_X)
     del temp_X
 
-    rng2 = np.random.Generator(  # noqa: F841
-        np.random.PCG64(seeds[2])
-    )
     knn = NearestNeighbors(n_neighbors=neighbors)
     knn.fit(pca_proj, Y)
     graph = knn.kneighbors_graph(pca_proj)
@@ -229,13 +219,7 @@ def vaeda(
 
     # Re-scale
     x_mat = np.log2(x_mat + 1)
-    rng4 = np.random.Generator(  # noqa: F841
-        np.random.PCG64(seeds[4])
-    )
     scaler = StandardScaler().fit(x_mat.T)
-    rng5 = np.random.Generator(  # noqa: F841
-        np.random.PCG64(seeds[5])
-    )
     x_mat = scaler.transform(x_mat.T).T
 
     # ---- Clustering ----
@@ -502,6 +486,19 @@ def vaeda(
     adata.obsm["vaeda_embedding"] = encoding[Y == 0, :]
 
     return adata
+
+
+def _top_variable_genes(
+    x_mat: npt.NDArray[np.float64], num_hvgs: int
+) -> npt.NDArray[np.intp]:
+    """Return indices of the ``num_hvgs`` most variable genes.
+
+    Variance is computed on ``log2(counts + 1)`` rather than raw counts, so
+    selection is not dominated by highly expressed genes (the raw count
+    mean-variance confound).
+    """
+    var = np.var(np.log2(x_mat + 1), axis=0)
+    return np.argpartition(var, -num_hvgs)[-num_hvgs:]
 
 
 def _clamp_knee(knee: int, num: int) -> int:

@@ -86,8 +86,9 @@ class ClustClassifier(nn.Module):
         nn.init.zeros_(self.fc.bias)
 
     def forward(self, z: torch.Tensor) -> torch.Tensor:
+        """Return raw cluster logits (softmax is applied inside the loss)."""
         h = self.bn(z)
-        return torch.sigmoid(self.fc(h))
+        return self.fc(h)
 
 
 class ClustVAE(nn.Module):
@@ -153,7 +154,7 @@ class ClustVAE(nn.Module):
         x : input data
         recon_mu, recon_logvar : decoder outputs
         mu, logvar : encoder outputs (passed through, not recomputed)
-        clust_pred : cluster classifier output
+        clust_pred : cluster classifier logits (pre-softmax)
         clust_target : one-hot cluster labels
 
         Returns (total_loss, recon_loss, kl_loss) averaged over batch.
@@ -174,8 +175,10 @@ class ClustVAE(nn.Module):
         # regularisation losses (then Keras averages over batch).
         kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1).mean()
 
-        # Cluster classification loss (categorical cross-entropy)
-        clust_loss = F.binary_cross_entropy(clust_pred, clust_target, reduction="mean")
+        # Cluster classification loss: softmax categorical cross-entropy.
+        # Clusters are mutually exclusive, so this uses cross_entropy over
+        # logits with soft (one-hot) targets, not independent per-class BCE.
+        clust_loss = F.cross_entropy(clust_pred, clust_target, reduction="mean")
 
         total = nll + kl + self.clust_weight * clust_loss
         return total, nll, kl

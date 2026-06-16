@@ -50,6 +50,8 @@ def sim_inflate(
     rng2 = np.random.Generator(np.random.PCG64(seeds[1]))
     rng2.shuffle(ind2)
 
+    ind2 = _avoid_self_pairs(ind1, ind2, X.shape[0])
+
     X1 = X[ind1, :]
     X2 = X[ind2, :]
 
@@ -70,6 +72,22 @@ def sim_inflate(
     res = np.multiply(res.T, sf).T
 
     return res[:num_doublets, :], ind1[:num_doublets], ind2[:num_doublets]
+
+
+def _avoid_self_pairs(
+    ind1: npt.NDArray[np.intp], ind2: npt.NDArray[np.intp], n: int
+) -> npt.NDArray[np.intp]:
+    """Repair self-pairs so no doublet is a cell summed with itself.
+
+    The two parent index arrays are shuffled independently, so a position can
+    have ``ind1 == ind2``, which yields ``2 * cell`` — a non-biological
+    doublet. Each such position is shifted to the next cell index, which
+    differs from itself for any ``n > 1``.
+    """
+    out = ind2.copy()
+    collide = ind1 == out
+    out[collide] = (out[collide] + 1) % n
+    return out
 
 
 def _legacy_choice(

@@ -125,3 +125,87 @@ class TestBatchSlices:
         loss, auc = _train_one_epoch(model, optimiser, X, Y)
 
         assert np.isfinite(loss)
+
+
+class TestClusterHeadIsCategorical:
+    """vae.ClustVAE: cluster head uses softmax categorical cross-entropy."""
+
+    def test_classifier_emits_logits_not_independent_probabilities(self):
+        """
+        Given the cluster classifier head
+        When it scores a batch of latent vectors
+        Then it emits raw logits (softmax sums to 1, values may be negative),
+             not independent per-class sigmoid probabilities in (0, 1)
+        """
+        from vaeda.vae import ClustClassifier
+
+        torch.manual_seed(0)
+        head = ClustClassifier(n_latent=4, n_clusters=3)
+        out = head(torch.randn(64, 4))
+
+        softmax_sums = torch.softmax(out, dim=1).sum(dim=1)
+        assert torch.allclose(softmax_sums, torch.ones(64), atol=1e-5)
+        # sigmoid output would be strictly in (0, 1); logits go negative
+        assert (out < 0).any()
+
+    def test_loss_rewards_correct_cluster_over_wrong_one(self):
+        """
+        Given one-hot cluster targets and the VAE loss
+        When the classifier confidently predicts the correct vs wrong cluster
+        Then the correct prediction yields a strictly lower loss
+             (categorical CE accepts logits that BCE-on-sigmoid could not)
+        """
+        from vaeda.vae import ClustVAE
+
+        vae = ClustVAE(n_input=4, n_latent=2, n_clusters=3)
+        x = torch.randn(5, 4)
+        recon_mu = x.clone()
+        recon_logvar = torch.zeros_like(x)
+        mu = torch.zeros(5, 2)
+        logvar = torch.zeros(5, 2)
+        target = torch.eye(3)[torch.tensor([0, 1, 2, 0, 1])]
+
+        good = vae.loss(x, recon_mu, recon_logvar, mu, logvar, target * 10.0, target)[0]
+        bad = vae.loss(x, recon_mu, recon_logvar, mu, logvar, (1 - target) * 10.0, target)[0]
+
+        assert good.item() < bad.item()
+
+
+class TestTopVariableGenes:
+    """vaeda._top_variable_genes: rank genes by log-scaled variance."""
+
+    def test_high_fold_change_gene_beats_high_count_gene(self):
+        """
+        Given a high-count gene with tiny fold change (high raw variance) and a
+        low-count gene with large fold change (high log variance)
+        When the single most variable gene is selected
+        Then the high-fold-change gene wins (log-scaled, not raw, variance)
+        """
+        from vaeda.vaeda import _top_variable_genes
+
+        # gene 0: huge counts, ~flat -> high raw var, ~zero log var
+        # gene 1: low counts, big fold change -> high log var
+        x = np.array(
+            [[10000.0, 1.0], [10100.0, 4.0], [10200.0, 16.0]],
+            dtype=np.float64,
+        )
+        idx = _top_variable_genes(x, num_hvgs=1)
+        assert list(idx) == [1]
+
+
+class TestAvoidSelfPairs:
+    """mk_doublets._avoid_self_pairs: no cell is paired with itself."""
+
+    def test_self_pair_is_broken(self):
+        """
+        Given parent index arrays where some positions point a cell at itself
+        When self-pairs are repaired
+        Then no position has ind1 == ind2
+        """
+        from vaeda.mk_doublets import _avoid_self_pairs
+
+        ind1 = np.array([0, 1, 2, 3])
+        ind2 = np.array([0, 2, 2, 3])  # positions 0 and 3 are self-pairs
+        out2 = _avoid_self_pairs(ind1, ind2, n=4)
+
+        assert not np.any(ind1 == out2)
