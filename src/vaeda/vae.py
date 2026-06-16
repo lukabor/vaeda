@@ -184,40 +184,6 @@ class ClustVAE(nn.Module):
         return total, nll, kl
 
 
-class SimpleVAE(nn.Module):
-    """VAE without the cluster head (used by ``define_vae``).
-
-    Kept for API compatibility but currently unused in the main
-    pipeline.
-    """
-
-    def __init__(self, n_input: int, n_latent: int) -> None:
-        super().__init__()
-        self.encoder = Encoder(n_input, n_latent)
-        self.decoder = Decoder(n_latent, n_input)
-
-    def forward(
-        self, x: torch.Tensor
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        z, mu, logvar = self.encoder(x)
-        recon_mu, recon_logvar = self.decoder(z)
-        return recon_mu, recon_logvar, z, mu, logvar
-
-    def loss(
-        self,
-        x: torch.Tensor,
-        recon_mu: torch.Tensor,
-        recon_logvar: torch.Tensor,
-        mu: torch.Tensor,
-        logvar: torch.Tensor,
-    ) -> torch.Tensor:
-        recon_logvar = recon_logvar.clamp(-20, 20)
-        recon_dist = Independent(Normal(recon_mu, torch.exp(0.5 * recon_logvar)), 1)
-        nll = -recon_dist.log_prob(x).mean()
-        kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp(), dim=-1).mean()
-        return nll + kl
-
-
 # ---------------------------------------------------------------------------
 # Factory functions (preserve the v0.1.x public API names)
 # ---------------------------------------------------------------------------
@@ -240,14 +206,6 @@ def define_clust_vae(
     device = _get_device()
     model = ClustVAE(ngens, enc_sze, num_clust, clust_weight).to(device)
     optimiser = torch.optim.Adamax(model.parameters(), lr=LR)
-    return model, optimiser
-
-
-def define_vae(enc_sze: int, ngens: int) -> tuple[SimpleVAE, torch.optim.Optimizer]:
-    """Build a SimpleVAE model and its Adamax optimiser."""
-    device = _get_device()
-    model = SimpleVAE(ngens, enc_sze).to(device)
-    optimiser = torch.optim.Adamax(model.parameters(), lr=1e-3)
     return model, optimiser
 
 
