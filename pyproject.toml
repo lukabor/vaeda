@@ -146,6 +146,12 @@ ignore = [
     "E501",   # line too long (handled by formatter)
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The TensorFlow backend reproduces upstream vaeda numerics, which depend on
+# the legacy global numpy RNG (np.random.seed/shuffle) for the fold shuffle —
+# switching to np.random.Generator would change the shuffle and break parity.
+"src/vaeda/backends/_tf/train.py" = ["NPY002"]
+
 [tool.ruff.lint.isort]
 known-first-party = ["vaeda"]
 
@@ -158,6 +164,17 @@ warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 ignore_missing_imports = true
+
+[tool.ty]
+# The TensorFlow backend's imports (tensorflow, tf_keras, tensorflow_probability)
+# only resolve when the optional vaeda[tensorflow] extra is installed, so ignore
+# unresolved-import there in the default torch-only environment. The CI leg that
+# installs the extra type-checks these for real.
+[[tool.ty.overrides]]
+include = ["src/vaeda/backends/_tf/**"]
+
+[tool.ty.overrides.rules]
+unresolved-import = "ignore"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

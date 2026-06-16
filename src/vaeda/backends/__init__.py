@@ -87,6 +87,6 @@ def get_backend() -> Backend:
         from ._torch import BACKEND
 
         return BACKEND
-    # tensorflow backend lands in Phase 4 of docs/Roadmap.md
-    msg = f"The {name!r} backend is not implemented yet"
-    raise NotImplementedError(msg)
+    from ._tf import BACKEND
+
+    return BACKEND

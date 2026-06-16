@@ -107,7 +107,15 @@ Build `backends/_tf/` from upstream `kostkalab/vaeda` (tfp `IndependentNormal` +
 - **Verify**: with `VAEDA_BACKEND=tensorflow`, the fast suite passes against the TF
   backend.
 - **Risk**: `tensorflow_probability` + `tf_keras` is thinning-support — pin hard.
-- **Status**: pending.
+- **Status**: ✅ done (2026-06-16). `backends/_tf/` ports the TFP/Keras VAE
+  (`IndependentNormal` + `KLDivergenceRegularizer`), the classifier, and the
+  `model.fit`-based training into the seam (`train_clust_vae`/`train_pu_fold`);
+  `get_backend()` now loads it. Built and tested in an isolated venv
+  (`/tmp/vaeda-tf-venv`, tensorflow 2.21 / tfp 0.25 / tf-keras 2.21).
+  `tests/test_tf_backend.py` (skips without the extra) passes there; lint/ty
+  scoped for the optional imports + the parity-required legacy RNG.
+  **Crux solved**: `tensorflow_probability` 0.25 needs Keras 2, so `_tf`
+  sets `TF_USE_LEGACY_KERAS=1` before importing tensorflow.
 
 ### Phase 5 — Parity validation
 Generate golden doublet scores by running upstream main in an isolated legacy env
