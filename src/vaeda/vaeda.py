@@ -143,6 +143,8 @@ def vaeda(
             else adata.layers[layer]
         )
 
+    _validate_counts(x_mat)
+
     # ---- Simulated doublets ----
     old_sim = False
     if save_dir is not None:
@@ -486,6 +488,23 @@ def vaeda(
     adata.obsm["vaeda_embedding"] = encoding[Y == 0, :]
 
     return adata
+
+
+def _validate_counts(x_mat: npt.NDArray[np.float64]) -> None:
+    """Check that the expression matrix looks like raw counts.
+
+    Raises on negative values (never valid counts) and warns on non-integer
+    values (likely log-transformed or normalized data), since the downstream
+    ``log2`` and library-size logic assumes raw counts.
+    """
+    if np.any(x_mat < 0):
+        msg = "vaeda expects raw counts; found negative values in the input matrix."
+        raise ValueError(msg)
+    if not np.all(np.mod(x_mat, 1) == 0):
+        logger.warning(
+            "Input matrix has non-integer values; vaeda expects raw counts. "
+            "Proceeding, but results may be unreliable."
+        )
 
 
 def _top_variable_genes(

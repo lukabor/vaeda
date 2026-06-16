@@ -275,3 +275,57 @@ class TestClusterReproducibility:
         second = cluster(x, random_state=0)
 
         assert np.array_equal(first, second)
+
+
+class TestValidateCounts:
+    """vaeda._validate_counts: enforce raw-count expectations on the input."""
+
+    def test_negative_values_raise(self):
+        """
+        Given an expression matrix containing negative values
+        When the counts are validated
+        Then a ValueError is raised (negatives are never valid counts)
+        """
+        from vaeda.vaeda import _validate_counts
+
+        x = np.array([[1.0, -2.0], [3.0, 4.0]])
+        with pytest.raises(ValueError, match="raw counts"):
+            _validate_counts(x)
+
+    def test_integer_counts_pass_silently(self):
+        """
+        Given a non-negative integer-valued matrix
+        When the counts are validated
+        Then no error is raised and no warning is emitted
+        """
+        from loguru import logger
+
+        from vaeda.vaeda import _validate_counts
+
+        messages: list[str] = []
+        sink_id = logger.add(messages.append, level="WARNING")
+        try:
+            _validate_counts(np.array([[0.0, 5.0], [3.0, 2.0]]))
+        finally:
+            logger.remove(sink_id)
+
+        assert messages == []
+
+    def test_non_integer_values_warn_but_pass(self):
+        """
+        Given a non-negative matrix with fractional (e.g. normalized) values
+        When the counts are validated
+        Then it does not raise but emits a warning about non-integer counts
+        """
+        from loguru import logger
+
+        from vaeda.vaeda import _validate_counts
+
+        messages: list[str] = []
+        sink_id = logger.add(messages.append, level="WARNING")
+        try:
+            _validate_counts(np.array([[1.5, 2.0], [3.0, 4.2]]))
+        finally:
+            logger.remove(sink_id)
+
+        assert any("non-integer" in m for m in messages)
