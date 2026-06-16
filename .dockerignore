@@ -1,0 +1,26 @@
+# Keep the host virtualenv out of the build context. The image builds its own
+# environment at /opt/venv (see UV_PROJECT_ENVIRONMENT in the Dockerfile); a
+# host .venv here is often root-owned and its interpreter symlinks are invalid
+# inside the image, so `COPY . .` must never drag it in.
+.venv/
+
+# Version control and CI metadata
+.git/
+.github/
+
+# Python / tooling caches and build artifacts
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+dist/
+build/
+*.egg-info/
+
+# Editor / OS noise
+.ipynb_checkpoints/
+.DS_Store
