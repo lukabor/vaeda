@@ -13,7 +13,7 @@ from rich.progress import Progress
 from sklearn.model_selection import RepeatedKFold
 from sklearn.neighbors import NearestNeighbors
 
-from .backends._torch.train import train_pu_fold
+from .backends import get_backend
 
 
 def _normalize_pu_preds(
@@ -92,7 +92,7 @@ def PU(
             x = U[predict_idx, :]
 
             if clss == "NN":
-                fold = train_pu_fold(
+                fold = get_backend().train_pu_fold(
                     X,
                     Y,
                     x,
@@ -169,7 +169,7 @@ def epoch_PU(
                 np.ones([P.shape[0]]),
             ])
 
-            fold = train_pu_fold(
+            fold = get_backend().train_pu_fold(
                 X,
                 Y,
                 None,

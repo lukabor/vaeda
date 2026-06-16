@@ -44,16 +44,23 @@ src/vaeda/
     _tf/{vae,classifier,train}.py
 ```
 
-The seam (`backends/base.py`):
+The seam (`backends/base.py`, as realized in Phases 1–2):
 
 ```python
 class Backend(Protocol):
     name: str
-    def set_seed(self, seed: int) -> None: ...
-    def train_clust_vae(self, X_train, X_test, clust_train_oh, clust_test_oh,
-                        *, enc_sze, num_clust, lr, clust_weight, patience, seeds) -> np.ndarray: ...
-    def train_pu_classifier(self, X, Y, P, *, pu_lr, seeds) -> np.ndarray: ...
+    def train_clust_vae(self, x_mat, X_train, X_test, clust_train_oh, clust_test_oh,
+                        *, enc_sze, num_clust, lr, clust_weight, rate, patience,
+                        max_epochs, seeds, verbose=0) -> np.ndarray: ...
+    def train_pu_fold(self, X, Y, x_predict, P, *, cls_eps, num_layers, pu_lr,
+                      seeds) -> PuFoldResult: ...
 ```
+
+Note: the PU seam is *per fold* (`train_pu_fold`), not whole-classifier — the
+`RepeatedKFold` bagging and score averaging stay in `pu.py` as backend-agnostic
+numpy orchestration. Seeding is internal to each call (via the `seeds` array),
+so no separate `set_seed` is needed. `PuFoldResult` is a `NamedTuple` defined in
+`backends/base.py`.
 
 ## Phases
 
@@ -64,7 +71,10 @@ out of `vaeda.py` and the PU loop out of `pu.py` into `backends/_torch/train.py`
 and `pu.py` keep only numpy-level orchestration.
 - **Verify**: capture a golden output (doublet scores on a small fixture) *before*
   the move; assert identical after. `tests/test_fixes.py` stays green.
-- **Status**: pending.
+- **Status**: ✅ done & verified (2026-06-16). Goldens in
+  `tests/test_torch_backend.py` reproduce the pre-refactor VAE encoding and PU
+  fold scores exactly; full pbmc3k pipeline (`tests/test_vaeda.py`, 15 tests)
+  green on the relocated backend. `vaeda.py` and `pu.py` are now torch-free.
 
 ### Phase 2 — Seam + resolver
 Add `backends/base.py` (Protocol) and `backends/__init__.py` (`get_backend()` with
@@ -72,7 +82,11 @@ env → autodetect → error). `vaeda.py` calls `get_backend()` instead of impor
 `_torch` directly. Still torch-only.
 - **Verify**: resolver unit tests (env set/unset, missing-backend error message);
   fast suite green.
-- **Status**: pending.
+- **Status**: ✅ done (2026-06-16). `backends/base.py` holds the `Backend`
+  protocol + `PuFoldResult`; `backends/__init__.py` has `get_backend()` (cached)
+  and the pure, unit-tested `_resolve_backend_name()`. Framework imports are
+  deferred so importing vaeda forces neither torch nor tensorflow.
+  `tests/test_backend_resolver.py` covers all branches; env smoke-tested.
 
 ### Phase 3 — pyproject extras
 Add `[project.optional-dependencies]` `torch` and `tensorflow`; keep torch in core

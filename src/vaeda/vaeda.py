@@ -22,7 +22,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
 
-from .backends._torch.train import train_clust_vae
+from .backends import get_backend
 from .cluster import cluster, fast_cluster
 from .logger import init_logger
 from .mk_doublets import sim_inflate
@@ -273,7 +273,7 @@ def vaeda(
         if verbose != 0:
             logger.info("generating VAE encoding")
 
-        encoding = train_clust_vae(
+        encoding = get_backend().train_clust_vae(
             x_mat,
             X_train,
             X_test,

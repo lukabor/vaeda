@@ -9,30 +9,15 @@ previous inline loops in those modules — see the characterization tests in
 
 from __future__ import annotations
 
-from typing import NamedTuple
-
 import numpy as np
 import torch
 import torch.nn.functional as F
 from loguru import logger
 from sklearn.metrics import average_precision_score
 
+from ..base import PuFoldResult
 from .classifier import define_classifier
 from .vae import _EarlyStopper, _get_device, define_clust_vae
-
-
-class PuFoldResult(NamedTuple):
-    """Result of training a single PU bagging fold.
-
-    ``pred_x`` / ``pred_P`` are the classifier scores on the held-out unlabeled
-    points and the positive set (``None`` when that input was not supplied);
-    ``loss_hist`` / ``ap_hist`` are the per-epoch training metrics.
-    """
-
-    pred_x: np.ndarray | None
-    pred_P: np.ndarray | None
-    loss_hist: list[float]
-    ap_hist: list[float]
 
 
 def _batch_slices(n: int, batch_size: int) -> list[tuple[int, int]]:
