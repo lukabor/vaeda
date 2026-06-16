@@ -457,7 +457,9 @@ def vaeda(
     dbr_sd = np.sqrt(n * dbr * (1 - dbr))
 
     fnr = []
-    fpr = []
+    # Fraction of real cells flagged as doublets (a call rate, not a true
+    # false-positive rate — there are no ground-truth negatives here).
+    flag_rate = []
     nll_doub = []
 
     o_t = np.sum(preds >= thresholds[-1])
@@ -466,10 +468,10 @@ def vaeda(
     for thresh in thresholds:
         o_t = np.sum(preds >= thresh)
         fnr.append(np.sum(preds_on_p < thresh) / len(preds_on_p))
-        fpr.append(o_t / len(preds))
+        flag_rate.append(o_t / len(preds))
         nll_doub.append(-(_log_norm(o_t, dbl_expected, dbr_sd) / norm_factor))
 
-    cost = np.array(fnr) + np.array(fpr) + np.array(nll_doub) ** 2
+    cost = np.array(fnr) + np.array(flag_rate) + np.array(nll_doub) ** 2
 
     t = thresholds[np.argmin(cost)]
     call_mask = preds > t
