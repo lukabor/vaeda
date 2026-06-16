@@ -57,7 +57,7 @@ def _train_one_epoch(
     Y: torch.Tensor,
     batch_size: int = 32,
 ) -> tuple[float, float]:
-    """Train a single epoch with minibatches; return (loss, auc)."""
+    """Train a single epoch with minibatches; return (loss, average precision)."""
     model.train()
     device = X.device
     n = X.shape[0]
@@ -78,7 +78,7 @@ def _train_one_epoch(
         total_loss += loss.item()
         n_batches += 1
 
-    # Compute epoch-level AUC on full data
+    # Compute epoch-level average precision on full data
     model.eval()
     with torch.no_grad():
         all_preds = model(X).cpu().numpy()
@@ -86,11 +86,11 @@ def _train_one_epoch(
         from sklearn.metrics import average_precision_score
 
         try:
-            auc_val = float(average_precision_score(all_targets, all_preds))
+            ap_val = float(average_precision_score(all_targets, all_preds))
         except ValueError:
-            auc_val = 0.0
+            ap_val = 0.0
 
-    return total_loss / n_batches, auc_val
+    return total_loss / n_batches, ap_val
 
 
 def PU(
@@ -104,11 +104,9 @@ def PU(
     _puPat: int = 5,
     puLR: float = 1e-3,
     num_layers: int = 1,
-    _stop_metric: str = "ValAUC",
+    _stop_metric: str = "ValAP",
     _verbose: int = 0,
 ) -> tuple[
-    np.ndarray,
-    np.ndarray,
     np.ndarray,
     np.ndarray,
     np.ndarray,
@@ -117,6 +115,12 @@ def PU(
     """Positive-Unlabeled bagging classifier.
 
     Parameters are the same as in v0.1.x for API compatibility.
+
+    Bagging follows Mordelet & Vert: each fold fits a classifier on a small
+    held-out subsample of the unlabeled set (``fit_idx``) plus all positives,
+    then scores the remaining unlabeled points (``predict_idx``). Note that
+    ``RepeatedKFold.split`` yields ``(train_idx, test_idx)``, so the large
+    partition is used for prediction and the small one for fitting.
     """
     device = _get_device()
     random_state = seeds[0]
@@ -126,16 +130,14 @@ def PU(
     preds_on_P = np.zeros([P.shape[0]])
 
     hists = np.zeros([N * k, cls_eps])
-    val_hists = np.zeros([N * k, cls_eps])
-    auc_hists = np.zeros([N * k, cls_eps])
-    val_auc = np.zeros([N * k, cls_eps])
+    ap_hists = np.zeros([N * k, cls_eps])
 
     P_tensor = torch.tensor(P, dtype=torch.float32, device=device)
 
     i = 0
     with Progress() as progress:
         train_task = progress.add_task(description="", total=k)
-        for test, train in rkf.split(U):
+        for predict_idx, fit_idx in rkf.split(U):
             i += 1
             progress.update(
                 train_task,
@@ -143,13 +145,13 @@ def PU(
                 refresh=True,
             )
 
-            X = np.vstack([U[train, :], P])
+            X = np.vstack([U[fit_idx, :], P])
             Y = np.concatenate([
-                np.zeros(shape=[len(train)]),
+                np.zeros(shape=[len(fit_idx)]),
                 np.ones(shape=[P.shape[0]]),
             ])
 
-            x = U[test, :]
+            x = U[predict_idx, :]
 
             if clss == "NN":
                 # Set seeds for reproducibility
@@ -169,15 +171,15 @@ def PU(
 
                 torch.manual_seed(seeds[3])
                 for ep in range(cls_eps):
-                    loss_val, auc_val = _train_one_epoch(classifier, optimiser, X_t, Y_t)
+                    loss_val, ap_val = _train_one_epoch(classifier, optimiser, X_t, Y_t)
                     hists[i - 1, ep] = loss_val
-                    auc_hists[i - 1, ep] = auc_val
+                    ap_hists[i - 1, ep] = ap_val
 
                 # Predictions
                 classifier.eval()
                 with torch.no_grad():
                     torch.manual_seed(seeds[3])
-                    preds[test] = preds[test] + classifier(x_t).cpu().numpy()
+                    preds[predict_idx] = preds[predict_idx] + classifier(x_t).cpu().numpy()
                     torch.manual_seed(seeds[3])
                     preds_on_P = preds_on_P + classifier(P_tensor).cpu().numpy()
 
@@ -187,7 +189,7 @@ def PU(
                 knn.fit(X, Y)
 
                 graph = knn.kneighbors_graph(x)
-                preds[test] = preds[test] + np.squeeze(
+                preds[predict_idx] = preds[predict_idx] + np.squeeze(
                     np.array(np.sum(graph[:, Y == 1], axis=1) / neighbors)
                 )
 
@@ -198,7 +200,7 @@ def PU(
 
     preds, preds_on_P = _normalize_pu_preds(preds, preds_on_P, i, k)
 
-    return preds, preds_on_P, hists, val_hists, auc_hists, val_auc
+    return preds, preds_on_P, hists, ap_hists
 
 
 def epoch_PU(
@@ -211,14 +213,14 @@ def epoch_PU(
     _puPat: int = 5,
     puLR: float = 1e-3,
     num_layers: int = 1,
-    _stop_metric: str = "ValAUC",
+    _stop_metric: str = "ValAP",
     _verbose: int = 0,
 ) -> _EpochHistory:
     """Train a single PU fold to determine optimal epoch count.
 
     Returns a history-like object with a ``.history`` dict containing
-    ``"loss"`` and ``"auc"`` lists, matching the tf_keras API used by
-    the caller.
+    ``"loss"`` and ``"ap"`` (average precision) lists, matching the
+    tf_keras History API used by the caller.
     """
     device = _get_device()
     random_state = seeds[0]
@@ -227,16 +229,16 @@ def epoch_PU(
     i = 0
     with Progress() as progress:
         train_task = progress.add_task(description="", total=k)
-        for _, train in rkf.split(U):
+        for _, fit_idx in rkf.split(U):
             i += 1
             progress.update(
                 train_task,
                 description=f"{i!s}/{(N * k)!s} iterations",
                 refresh=True,
             )
-            X = np.vstack([U[train, :], P])
+            X = np.vstack([U[fit_idx, :], P])
             Y = np.concatenate([
-                np.zeros([len(train)]),
+                np.zeros([len(fit_idx)]),
                 np.ones([P.shape[0]]),
             ])
 
@@ -254,15 +256,15 @@ def epoch_PU(
 
             torch.manual_seed(seeds[3])
             loss_history: list[float] = []
-            auc_history: list[float] = []
+            ap_history: list[float] = []
             for _ in range(cls_eps):
-                loss_val, auc_val = _train_one_epoch(classifier, optimiser, X_t, Y_t)
+                loss_val, ap_val = _train_one_epoch(classifier, optimiser, X_t, Y_t)
                 loss_history.append(loss_val)
-                auc_history.append(auc_val)
+                ap_history.append(ap_val)
 
             break  # Only first fold, matching v0.1.x behaviour
 
-    return _EpochHistory({"loss": loss_history, "auc": auc_history})
+    return _EpochHistory({"loss": loss_history, "ap": ap_history})
 
 
 class _EpochHistory:
