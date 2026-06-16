@@ -27,7 +27,7 @@ from .cluster import cluster, fast_cluster
 from .logger import init_logger
 from .mk_doublets import sim_inflate
 from .pu import PU, _batch_slices, epoch_PU
-from .vae import _get_device, define_clust_vae
+from .vae import _EarlyStopper, _get_device, define_clust_vae
 
 
 def vaeda(
@@ -298,9 +298,8 @@ def vaeda(
             optimiser, lr_lambda=lr_lambda
         )
 
-        # Early stopping state
-        best_val_loss = float("inf")
-        patience_counter = 0
+        # Early stopping (snapshots the best-validation-loss weights)
+        stopper = _EarlyStopper(patience=pat_vae)
         batch_size = 32  # Keras default
 
         for epoch in range(max_eps_vae):
@@ -357,16 +356,14 @@ def vaeda(
                 )
                 val_loss_val = val_loss.item()
 
-            # Early stopping check
-            if val_loss_val < best_val_loss:
-                best_val_loss = val_loss_val
-                patience_counter = 0
-            else:
-                patience_counter += 1
-                if patience_counter >= pat_vae:
-                    if verbose != 0:
-                        logger.info(f"VAE early stopping at epoch {epoch}")
-                    break
+            # Early stopping check (snapshots best weights internally)
+            if stopper.step(val_loss_val, vae):
+                if verbose != 0:
+                    logger.info(f"VAE early stopping at epoch {epoch}")
+                break
+
+        # Restore the best-validation-loss weights before encoding
+        stopper.restore(vae)
 
         # Extract encodings
         vae.eval()

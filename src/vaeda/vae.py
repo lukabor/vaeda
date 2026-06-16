@@ -6,6 +6,8 @@ with native PyTorch modules and torch.distributions.
 
 from __future__ import annotations
 
+import copy
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -207,6 +209,41 @@ def define_clust_vae(
     model = ClustVAE(ngens, enc_sze, num_clust, clust_weight).to(device)
     optimiser = torch.optim.Adamax(model.parameters(), lr=LR)
     return model, optimiser
+
+
+class _EarlyStopper:
+    """Track validation loss, snapshot the best weights, and signal stopping.
+
+    On each :meth:`step` the model is snapshotted (a deep copy of its
+    ``state_dict``) whenever the validation loss improves. After training,
+    :meth:`restore` loads the best snapshot back, so the encoding is taken
+    from the best epoch rather than the last one.
+    """
+
+    def __init__(self, patience: int) -> None:
+        self.patience = patience
+        self.best_loss = float("inf")
+        self.counter = 0
+        self._best_state: dict | None = None
+
+    def step(self, val_loss: float, model: nn.Module) -> bool:
+        """Record ``val_loss``; snapshot ``model`` if it improved.
+
+        Returns True once ``patience`` consecutive non-improving epochs have
+        elapsed (the caller should stop training).
+        """
+        if val_loss < self.best_loss:
+            self.best_loss = val_loss
+            self.counter = 0
+            self._best_state = copy.deepcopy(model.state_dict())
+            return False
+        self.counter += 1
+        return self.counter >= self.patience
+
+    def restore(self, model: nn.Module) -> None:
+        """Load the best snapshot back into ``model`` (no-op if never set)."""
+        if self._best_state is not None:
+            model.load_state_dict(self._best_state)
 
 
 def _get_device() -> torch.device:

@@ -166,7 +166,9 @@ class TestClusterHeadIsCategorical:
         target = torch.eye(3)[torch.tensor([0, 1, 2, 0, 1])]
 
         good = vae.loss(x, recon_mu, recon_logvar, mu, logvar, target * 10.0, target)[0]
-        bad = vae.loss(x, recon_mu, recon_logvar, mu, logvar, (1 - target) * 10.0, target)[0]
+        bad = vae.loss(
+            x, recon_mu, recon_logvar, mu, logvar, (1 - target) * 10.0, target
+        )[0]
 
         assert good.item() < bad.item()
 
@@ -209,3 +211,45 @@ class TestAvoidSelfPairs:
         out2 = _avoid_self_pairs(ind1, ind2, n=4)
 
         assert not np.any(ind1 == out2)
+
+
+class TestEarlyStopper:
+    """vae._EarlyStopper: track and restore the best-validation-loss weights."""
+
+    def test_restores_best_epoch_weights(self):
+        """
+        Given a validation-loss sequence that improves then worsens
+        When the model is stepped through each epoch and restored at the end
+        Then the model holds the weights from the lowest-loss epoch
+        """
+        from vaeda.vae import _EarlyStopper
+
+        model = torch.nn.Linear(1, 1)
+        stopper = _EarlyStopper(patience=2)
+        losses = [3.0, 2.0, 1.0, 5.0, 6.0]  # best is epoch 2 (loss 1.0)
+
+        for epoch, loss in enumerate(losses):
+            with torch.no_grad():
+                model.weight.fill_(float(epoch))
+            stopper.step(loss, model)
+
+        with torch.no_grad():
+            model.weight.fill_(99.0)  # clobber to prove restore happens
+        stopper.restore(model)
+
+        assert model.weight.item() == pytest.approx(2.0)
+
+    def test_stops_after_patience_exhausted(self):
+        """
+        Given a loss that stops improving
+        When patience worse epochs elapse
+        Then step reports that training should stop
+        """
+        from vaeda.vae import _EarlyStopper
+
+        model = torch.nn.Linear(1, 1)
+        stopper = _EarlyStopper(patience=2)
+
+        assert stopper.step(2.0, model) is False  # improvement
+        assert stopper.step(3.0, model) is False  # worse 1/2
+        assert stopper.step(3.0, model) is True  # worse 2/2 -> stop
